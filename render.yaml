@@ -1,0 +1,25 @@
+# Render Blueprint: how Render builds and runs the backend.
+# Secrets marked "sync: false" are typed into the Render dashboard once,
+# when the Blueprint is first created. They never live in this repo.
+services:
+  - type: web
+    name: dataonchain-api
+    runtime: node
+    plan: free            # change to a paid plan before launch (free sleeps after 15 min)
+    region: frankfurt     # closest Render region to Nigeria
+    rootDir: backend
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      - key: FRONTEND_URL
+        sync: false

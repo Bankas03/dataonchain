@@ -1,13 +1,13 @@
 import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
 
-// Loads local settings. Values already set in the shell win, which is how
-// setup/03_deploy_vercel.sh points migrations at the production database.
-config({ path: ".env.local", quiet: true });
+// Loads backend/.env. Values already set in the shell win, which is how
+// the deploy script points migrations at the production database.
+config({ path: ".env", quiet: true });
 
 const url = process.env.TURSO_DATABASE_URL;
 if (!url) {
-  throw new Error("TURSO_DATABASE_URL is not set. Run setup/01_turso_setup.sh");
+  throw new Error("TURSO_DATABASE_URL is not set in backend/.env");
 }
 
 export default defineConfig({

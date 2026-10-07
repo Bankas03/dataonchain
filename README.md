@@ -1,36 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# dataonchain
 
-## Getting Started
+Buy Nigerian airtime and data with USDC on Arc.
 
-First, run the development server:
+| Folder | What it is | Runs on | Hosted on |
+| --- | --- | --- | --- |
+| `frontend/` | Next.js website | http://localhost:3000 | Vercel |
+| `backend/` | Hono API, Turso database, Circle, VTpass | http://localhost:4000 | Render |
+| `setup/` | Setup and deploy scripts | | |
+
+## Run locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bash setup/dev.sh
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Starts the backend and frontend together. Press Ctrl+C to stop both.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Settings
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `backend/.env` holds every secret (database, Circle, VTpass). See `backend/.env.example`.
+- `frontend/.env.local` holds public settings only, such as the API address. See `frontend/.env.example`.
+- Never commit a real `.env` file.
 
-## Learn More
+## Database
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+cd backend
+npm run db:generate   # after changing src/db/schema.ts
+npm run db:migrate    # apply changes to the development database
+npm run db:check      # confirm every table exists
+npm run db:studio     # browse the data
+```

@@ -3,7 +3,7 @@
 import { config } from "dotenv";
 import { createClient } from "@libsql/client";
 
-config({ path: ".env.local", quiet: true });
+config({ path: ".env", quiet: true });
 
 const EXPECTED_TABLES = [
   "accounts",
