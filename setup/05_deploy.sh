@@ -15,6 +15,12 @@
 #   5. Tells Vercel where the API lives (NEXT_PUBLIC_API_URL) and deploys
 #   6. Checks the website loads and the API accepts calls from it
 #
+# Your production addresses are read from backend/.env:
+#   PRODUCTION_FRONTEND_URL   your Vercel website, e.g. https://dataonchain.vercel.app
+#   PRODUCTION_API_URL        your Render API, e.g. https://dataonchain-api.onrender.com
+#   VERCEL_PROJECT            your Vercel project name
+# Any that are missing are asked once and saved there.
+#
 # Run from the project folder, after script 04:
 #   cd ~/dataonchain
 #   bash setup/05_deploy.sh
@@ -65,6 +71,19 @@ ask_url() {
   done
 }
 
+# Production addresses are kept in backend/.env (never committed).
+ENV_FILE="backend/.env"
+env_get() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -n1 | cut -d= -f2- || true; }
+env_set() {
+  if grep -qE "^$1=" "$ENV_FILE"; then
+    sed -i "s#^$1=.*#$1=$2#" "$ENV_FILE"
+  else
+    grep -q "^# Production (used by setup/05_deploy.sh)" "$ENV_FILE" \
+      || printf '\n# Production (used by setup/05_deploy.sh)\n' >> "$ENV_FILE"
+    printf '%s=%s\n' "$1" "$2" >> "$ENV_FILE"
+  fi
+}
+
 export PATH="$HOME/.turso:$PATH"
 
 # --- 0. Checks ----------------------------------------------------------------------
@@ -81,10 +100,16 @@ git fetch -q origin main
 [[ "$(git rev-parse HEAD)" == "$(git rev-parse origin/main)" ]] || fail "Your code is not pushed. Run: git push"
 green "OK: clean and pushed"
 
-step "Your Vercel website address"
-echo "Find it on vercel.com > your project > Domains (for example https://dataonchain.vercel.app)"
-FRONTEND_URL="$(ask_url "Website address" "https://dataonchain.vercel.app")"
-green "OK: $FRONTEND_URL"
+step "Reading production settings from $ENV_FILE"
+FRONTEND_URL="$(env_get PRODUCTION_FRONTEND_URL)"
+if [[ -z "$FRONTEND_URL" ]]; then
+  echo "Your Vercel website address is not in $ENV_FILE yet."
+  echo "Find it on vercel.com > your project > Domains (for example https://dataonchain.vercel.app)"
+  FRONTEND_URL="$(ask_url "Website address" "https://dataonchain.vercel.app")"
+  env_set PRODUCTION_FRONTEND_URL "$FRONTEND_URL"
+  green "Saved PRODUCTION_FRONTEND_URL in $ENV_FILE"
+fi
+green "OK: website $FRONTEND_URL"
 
 # --- 1. Production database ------------------------------------------------------------
 step "Preparing production database: $PROD_DB"
@@ -113,8 +138,16 @@ green "OK: production database is up to date"
 
 # --- 2. Render (backend) -----------------------------------------------------------------
 step "Backend on Render"
-read -r -p "Have you already created the backend on Render with this script? (y/n) " ans
-if [[ "$ans" != "y" && "$ans" != "Y" ]]; then
+API_URL="$(env_get PRODUCTION_API_URL)"
+RENDER_READY="no"
+if [[ -n "$API_URL" ]]; then
+  echo "Found PRODUCTION_API_URL in $ENV_FILE: $API_URL"
+  RENDER_READY="yes"
+else
+  read -r -p "Have you already created the backend on Render? (y/n) " ans
+  [[ "$ans" == "y" || "$ans" == "Y" ]] && RENDER_READY="yes"
+fi
+if [[ "$RENDER_READY" != "yes" ]]; then
   RENDER_TOKEN="$(turso db tokens create "$PROD_DB" | tr -d '[:space:]')"
   [[ "$RENDER_TOKEN" == eyJ* ]] || fail "Could not create the Render token"
 
@@ -145,7 +178,11 @@ if [[ "$ans" != "y" && "$ans" != "Y" ]]; then
   command -v clip.exe >/dev/null 2>&1 && printf ' ' | clip.exe   # clear the clipboard
 fi
 
-API_URL="$(ask_url "Render API address" "https://dataonchain-api.onrender.com")"
+if [[ -z "$API_URL" ]]; then
+  API_URL="$(ask_url "Render API address" "https://dataonchain-api.onrender.com")"
+  env_set PRODUCTION_API_URL "$API_URL"
+  green "Saved PRODUCTION_API_URL in $ENV_FILE"
+fi
 
 step "Waiting for the API to answer $API_URL/health"
 echo "(the free plan can take up to a minute to wake up)"
@@ -173,8 +210,12 @@ fi
 green "OK: logged in as $(vercel whoami 2>/dev/null | tail -n1)"
 
 step "Linking to your Vercel project"
-read -r -p "Vercel project name [dataonchain]: " VERCEL_PROJECT
-VERCEL_PROJECT="${VERCEL_PROJECT:-dataonchain}"
+VERCEL_PROJECT="$(env_get VERCEL_PROJECT)"
+if [[ -z "$VERCEL_PROJECT" ]]; then
+  read -r -p "Vercel project name [dataonchain]: " VERCEL_PROJECT
+  VERCEL_PROJECT="${VERCEL_PROJECT:-dataonchain}"
+  env_set VERCEL_PROJECT "$VERCEL_PROJECT"
+fi
 vercel link --yes --project "$VERCEL_PROJECT"
 green "OK: linked to $VERCEL_PROJECT"
 yellow "Reminder: on vercel.com, Settings > Build and Deployment > Root Directory must be 'frontend'."
