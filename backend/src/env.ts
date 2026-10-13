@@ -10,8 +10,10 @@ function required(name: string): string {
   return value;
 }
 
+const NODE_ENV = process.env.NODE_ENV ?? "development";
+
 export const env = {
-  NODE_ENV: process.env.NODE_ENV ?? "development",
+  NODE_ENV,
   PORT: Number(process.env.PORT ?? 4000),
   FRONTEND_URLS: (process.env.FRONTEND_URL ?? "http://localhost:3000")
     .split(",")
@@ -21,4 +23,9 @@ export const env = {
   TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN,
   BETTER_AUTH_SECRET: required("BETTER_AUTH_SECRET"),
   BETTER_AUTH_URL: required("BETTER_AUTH_URL").replace(/\/$/, ""),
+  // Email: required in production, optional locally (emails print to the terminal)
+  RESEND_API_KEY: NODE_ENV === "production" ? required("RESEND_API_KEY") : process.env.RESEND_API_KEY,
+  EMAIL_FROM: NODE_ENV === "production"
+    ? required("EMAIL_FROM")
+    : (process.env.EMAIL_FROM ?? "dataonchain <onboarding@resend.dev>"),
 };

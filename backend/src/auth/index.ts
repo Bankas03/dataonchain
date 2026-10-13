@@ -1,4 +1,4 @@
-// Better Auth: signup, login, sessions.
+// Better Auth: signup, login, sessions, email verification.
 // All routes live under /api/auth/* (see app.ts).
 import { randomUUID } from "node:crypto";
 import { betterAuth } from "better-auth";
@@ -6,6 +6,8 @@ import { APIError } from "better-auth/api";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { db } from "../db";
 import { accounts, sessions, users, verifications } from "../db/schema";
+import { sendEmail } from "../email";
+import { verificationEmail } from "../email/templates";
 import { env } from "../env";
 import { normalizeNigerianPhone } from "./phone";
 
@@ -25,7 +27,24 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
-    autoSignIn: true,
+    // No login until the email is confirmed.
+    requireEmailVerification: true,
+    autoSignIn: false,
+  },
+
+  emailVerification: {
+    sendOnSignUp: true,
+    // Logging in with an unconfirmed email sends a fresh link.
+    sendOnSignIn: true,
+    // Clicking the link also logs the user in.
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      const message = verificationEmail(user.name, url);
+      // Not awaited on purpose: the response time must not reveal anything.
+      void sendEmail({ to: user.email, ...message }).catch((err) => {
+        console.error("[email] verification email failed:", err);
+      });
+    },
   },
 
   user: {

@@ -9,7 +9,10 @@ export default function DashboardPage() {
   const { data, isPending } = authClient.useSession();
 
   useEffect(() => {
-    if (!isPending && !data) router.replace("/login");
+    if (isPending || data) return;
+    // A failed confirmation link lands here with ?error=...
+    const failedLink = new URLSearchParams(window.location.search).has("error");
+    router.replace(failedLink ? "/login?error=link" : "/login");
   }, [isPending, data, router]);
 
   if (isPending || !data) {
@@ -50,7 +53,14 @@ export default function DashboardPage() {
             <dt className="text-zinc-500">Name</dt>
             <dd className="text-zinc-900 dark:text-zinc-100">{user.name}</dd>
             <dt className="text-zinc-500">Email</dt>
-            <dd className="text-zinc-900 dark:text-zinc-100">{user.email}</dd>
+            <dd className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
+              {user.email}
+              {user.emailVerified ? (
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                  Confirmed
+                </span>
+              ) : null}
+            </dd>
             <dt className="text-zinc-500">Phone</dt>
             <dd className="text-zinc-900 dark:text-zinc-100">{user.phone}</dd>
           </dl>

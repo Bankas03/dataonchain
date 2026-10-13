@@ -1,15 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { AuthShell, Field, FormError, SubmitButton } from "@/components/AuthShell";
 import { authClient } from "@/lib/auth-client";
 
 export default function SignupPage() {
-  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [resent, setResent] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -20,19 +20,68 @@ export default function SignupPage() {
       setError("The two passwords do not match.");
       return;
     }
+    const email = String(form.get("email")).trim();
     setBusy(true);
     const { error } = await authClient.signUp.email({
       name: String(form.get("name")).trim(),
-      email: String(form.get("email")).trim(),
+      email,
       phone: String(form.get("phone")).trim(),
       password,
+      callbackURL: "/dashboard",
     });
     setBusy(false);
     if (error) {
       setError(error.message ?? "Could not create your account. Please try again.");
       return;
     }
-    router.push("/dashboard");
+    setSentTo(email);
+  }
+
+  async function resend() {
+    if (!sentTo) return;
+    setBusy(true);
+    await authClient.sendVerificationEmail({ email: sentTo, callbackURL: "/dashboard" });
+    setBusy(false);
+    setResent(true);
+  }
+
+  if (sentTo) {
+    return (
+      <AuthShell
+        title="Check your inbox"
+        subtitle="One last step to finish setting up your account."
+        footer={
+          <>
+            Already confirmed?{" "}
+            <Link href="/login" className="font-medium text-emerald-700 hover:underline dark:text-emerald-400">
+              Log in
+            </Link>
+          </>
+        }
+      >
+        <div className="space-y-4 text-sm text-zinc-700 dark:text-zinc-300">
+          <p>
+            We sent a confirmation link to <strong className="text-zinc-900 dark:text-zinc-50">{sentTo}</strong>.
+            Click it to confirm your email and you will be logged in.
+          </p>
+          <p className="text-zinc-500">Not there after a minute? Check your spam folder.</p>
+          {resent ? (
+            <p className="rounded-lg bg-emerald-50 px-3 py-2 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+              We sent a new link.
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={resend}
+              disabled={busy}
+              className="w-full rounded-lg border border-zinc-300 px-4 py-2.5 font-medium text-zinc-900 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
+            >
+              {busy ? "Please wait..." : "Send the link again"}
+            </button>
+          )}
+        </div>
+      </AuthShell>
+    );
   }
 
   return (

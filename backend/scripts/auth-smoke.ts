@@ -1,5 +1,7 @@
 // End to end auth test against a running backend, then cleans up.
-// Run with: npx tsx scripts/auth-smoke.ts http://localhost:4000
+// The backend must run with EMAIL_OUTBOX_FILE set, so emails land in that file.
+// Run with: EMAIL_OUTBOX_FILE=/tmp/outbox.jsonl npx tsx scripts/auth-smoke.ts http://localhost:4000
+import { readFile } from "node:fs/promises";
 import { config } from "dotenv";
 import { createClient } from "@libsql/client";
 
@@ -7,14 +9,16 @@ config({ path: ".env", quiet: true });
 
 const base = (process.argv[2] ?? "http://localhost:4000").replace(/\/$/, "");
 const origin = (process.env.BETTER_AUTH_URL ?? "http://localhost:3000").replace(/\/$/, "");
+const outbox = process.env.EMAIL_OUTBOX_FILE;
 const email = `smoketest+${Date.now()}@example.com`;
 const password = "Sm0ke-test-password";
 
-type Result = { status: number; body: unknown; cookies: string[] };
+type Result = { status: number; body: unknown; cookies: string[]; location: string | null };
 
 async function call(path: string, method: string, body?: unknown, cookie?: string): Promise<Result> {
-  const res = await fetch(base + path, {
+  const res = await fetch(path.startsWith("http") ? path : base + path, {
     method,
+    redirect: "manual",
     headers: {
       "Content-Type": "application/json",
       Origin: origin,
@@ -29,8 +33,15 @@ async function call(path: string, method: string, body?: unknown, cookie?: strin
   } catch {
     // not JSON
   }
-  return { status: res.status, body: parsed, cookies: res.headers.getSetCookie() };
+  return {
+    status: res.status,
+    body: parsed,
+    cookies: res.headers.getSetCookie(),
+    location: res.headers.get("location"),
+  };
 }
+
+const cookieOf = (r: Result) => r.cookies.map((c) => c.split(";")[0]).join("; ");
 
 function check(ok: boolean, label: string, detail?: unknown) {
   if (!ok) {
@@ -38,6 +49,17 @@ function check(ok: boolean, label: string, detail?: unknown) {
     throw new Error(label);
   }
   console.log(`PASS: ${label}`);
+}
+
+async function latestEmailTo(to: string): Promise<{ subject: string; text: string } | null> {
+  if (!outbox) throw new Error("EMAIL_OUTBOX_FILE is not set");
+  for (let i = 0; i < 20; i++) {
+    const lines = (await readFile(outbox, "utf8").catch(() => "")).trim().split("\n").filter(Boolean);
+    const found = lines.map((l) => JSON.parse(l) as { to: string; subject: string; text: string }).filter((m) => m.to === to);
+    if (found.length > 0) return found[found.length - 1]!;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return null;
 }
 
 async function cleanup() {
@@ -48,6 +70,7 @@ async function cleanup() {
   const where = "user_id IN (SELECT id FROM users WHERE email LIKE 'smoketest+%@example.com')";
   await db.execute(`DELETE FROM sessions WHERE ${where}`);
   await db.execute(`DELETE FROM accounts WHERE ${where}`);
+  await db.execute("DELETE FROM verifications WHERE identifier LIKE '%smoketest+%'");
   await db.execute("DELETE FROM users WHERE email LIKE 'smoketest+%@example.com'");
   db.close();
   console.log("Cleaned up test users");
@@ -55,26 +78,33 @@ async function cleanup() {
 
 async function main() {
   const bad = await call("/api/auth/sign-up/email", "POST", {
-    name: "Smoke Test",
-    email: `bad-${email}`,
-    password,
-    phone: "12345",
+    name: "Smoke Test", email: `bad-${email}`, password, phone: "12345",
   });
   check(bad.status >= 400 && bad.status < 500, "invalid phone number is refused", bad.body);
 
   const signUp = await call("/api/auth/sign-up/email", "POST", {
-    name: "Smoke Test",
-    email,
-    password,
-    phone: "0801 234 5678",
+    name: "Smoke Test", email, password, phone: "0801 234 5678", callbackURL: "/dashboard",
   });
   check(signUp.status === 200, "sign up", signUp.body);
-  const cookie = signUp.cookies.map((c) => c.split(";")[0]).join("; ");
-  check(cookie.length > 0, "sign up sets a login cookie");
+
+  const early = await call("/api/auth/sign-in/email", "POST", { email, password });
+  check(early.status === 403, "log in is blocked until the email is confirmed", early.body);
+
+  const message = await latestEmailTo(email);
+  check(message !== null, "a confirmation email was sent");
+  const link = message!.text.match(/https?:\/\/\S+/)?.[0];
+  check(Boolean(link && link.includes("verify-email")), "the email contains a confirmation link", message);
+
+  // The link points at the website; in this test we open it on the backend directly.
+  const url = new URL(link!);
+  const verify = await call(base + url.pathname + url.search, "GET");
+  check(verify.status >= 300 && verify.status < 400, "the confirmation link works", verify.body);
+  const cookie = cookieOf(verify);
+  check(cookie.length > 0, "confirming the email logs the user in");
 
   const session = await call("/api/auth/get-session", "GET", undefined, cookie);
-  const sessionUser = (session.body as { user?: { email?: string } } | null)?.user;
-  check(sessionUser?.email === email, "session belongs to the new user", session.body);
+  const user = (session.body as { user?: { email?: string; emailVerified?: boolean } } | null)?.user;
+  check(user?.email === email && user.emailVerified === true, "the email is now marked as confirmed", session.body);
 
   const me = await call("/api/me", "GET", undefined, cookie);
   const meUser = (me.body as { user?: { phone?: string; role?: string } }).user;
@@ -88,7 +118,7 @@ async function main() {
   check(signOut.status === 200, "sign out", signOut.body);
 
   const login = await call("/api/auth/sign-in/email", "POST", { email, password });
-  check(login.status === 200, "log in with the same password", login.body);
+  check(login.status === 200, "log in after confirming", login.body);
 
   const wrong = await call("/api/auth/sign-in/email", "POST", { email, password: "wrong-password" });
   check(wrong.status === 401 || wrong.status === 400, "wrong password is refused", wrong.body);
