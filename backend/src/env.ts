@@ -28,4 +28,9 @@ export const env = {
   EMAIL_FROM: NODE_ENV === "production"
     ? required("EMAIL_FROM")
     : (process.env.EMAIL_FROM ?? "dataonchain <onboarding@resend.dev>"),
+  // Circle developer controlled wallets
+  CIRCLE_API_KEY: required("CIRCLE_API_KEY"),
+  CIRCLE_ENTITY_SECRET: required("CIRCLE_ENTITY_SECRET"),
+  CIRCLE_WALLET_SET_ID: required("CIRCLE_WALLET_SET_ID"),
+  CIRCLE_BLOCKCHAIN: process.env.CIRCLE_BLOCKCHAIN ?? "ARC-TESTNET",
 };

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { WalletCard } from "@/components/WalletCard";
 import { authClient } from "@/lib/auth-client";
 
 export default function DashboardPage() {
@@ -66,9 +67,7 @@ export default function DashboardPage() {
           </dl>
         </section>
 
-        <section className="mt-4 rounded-2xl border border-dashed border-zinc-300 p-6 text-sm text-zinc-500 dark:border-zinc-700">
-          Your USDC wallet and purchases will appear here soon.
-        </section>
+        <WalletCard />
       </div>
     </main>
   );

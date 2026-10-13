@@ -6,6 +6,7 @@ import { auth } from "./auth";
 import { requireAuth } from "./auth/middleware";
 import { client } from "./db";
 import { env } from "./env";
+import { NETWORK_NAMES, ensureUserWallet, getUsdcBalance } from "./wallets/service";
 
 export const app = new Hono();
 
@@ -34,7 +35,7 @@ app.get("/health", async (c) => {
 });
 
 // Quick check that the API (and the website's /api pass through) is up.
-app.get("/api/status", (c) => c.json({ ok: true, auth: true, email: true }));
+app.get("/api/status", (c) => c.json({ ok: true, auth: true, email: true, wallets: true }));
 
 // Signup, login, logout, sessions (Better Auth)
 app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
@@ -53,6 +54,30 @@ app.get("/api/me", requireAuth, (c) => {
       role: extra.role ?? "user",
       status: extra.status ?? "active",
     },
+  });
+});
+
+// The signed in user's wallet. Created on first visit, then reused.
+app.get("/api/wallet", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  if (!user.emailVerified) {
+    return c.json({ error: "Please confirm your email first" }, 403);
+  }
+  const wallet = await ensureUserWallet(user.id);
+  let usdc: string | null = null;
+  try {
+    usdc = await getUsdcBalance(wallet.circleWalletId);
+  } catch (err) {
+    console.error("[wallet] balance lookup failed:", err);
+  }
+  return c.json({
+    wallet: {
+      address: wallet.address,
+      blockchain: wallet.blockchain,
+      network: NETWORK_NAMES[wallet.blockchain] ?? wallet.blockchain,
+      testnet: wallet.blockchain.endsWith("TESTNET"),
+    },
+    balance: { usdc },
   });
 });
 
