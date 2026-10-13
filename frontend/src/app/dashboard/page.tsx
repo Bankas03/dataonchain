@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { RecentOrders } from "@/components/RecentOrders";
 import { WalletCard } from "@/components/WalletCard";
 import { authClient } from "@/lib/auth-client";
 
@@ -76,6 +77,7 @@ export default function DashboardPage() {
         </section>
 
         <WalletCard />
+        <RecentOrders />
       </div>
     </main>
   );

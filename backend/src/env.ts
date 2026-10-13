@@ -50,4 +50,9 @@ export const env = {
   PRICING_MARGIN_BPS: optionalNumber("PRICING_MARGIN_BPS") ?? 200,
   QUOTE_TTL_MINUTES: optionalNumber("QUOTE_TTL_MINUTES") ?? 10,
   NGN_PER_USDC: optionalNumber("NGN_PER_USDC"),
+  // Payments
+  TREASURY_WALLET_ID: required("TREASURY_WALLET_ID"),
+  TREASURY_ADDRESS: required("TREASURY_ADDRESS"),
+  PAYMENT_FEE_BUFFER_USDC: optionalNumber("PAYMENT_FEE_BUFFER_USDC") ?? 0.02,
+  EXPLORER_TX_URL: process.env.EXPLORER_TX_URL ?? "https://explorer.testnet.arc.io/tx/",
 };

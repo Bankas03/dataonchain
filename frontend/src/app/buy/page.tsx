@@ -98,6 +98,19 @@ export default function BuyPage() {
     return () => clearInterval(timer);
   }, [quote]);
 
+  async function pay() {
+    if (!quote) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await api(`/orders/${quote.reference}/pay`, { method: "POST" });
+      router.push(`/orders/${quote.reference}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Payment could not start. Please try again.");
+      setBusy(false);
+    }
+  }
+
   async function getPrice(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     setError(null);
@@ -270,6 +283,10 @@ export default function BuyPage() {
               <dd className="font-mono text-zinc-900 dark:text-zinc-100">{quote.reference}</dd>
             </dl>
 
+            <p className="text-xs text-zinc-500">
+              A small Arc network fee (usually well under 0.01 USDC) is also paid from your wallet.
+            </p>
+
             {expired ? (
               <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
                 This price has expired. Get a new one to continue.
@@ -300,11 +317,11 @@ export default function BuyPage() {
               </button>
             ) : (
               <button
-                disabled
-                title="Paying with USDC arrives in the next update"
-                className="w-full cursor-not-allowed rounded-lg bg-emerald-700 px-4 py-2.5 font-medium text-white opacity-60"
+                onClick={() => void pay()}
+                disabled={busy || notEnough}
+                className="w-full rounded-lg bg-emerald-700 px-4 py-2.5 font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
               >
-                Pay with USDC (coming next)
+                {busy ? "Sending payment..." : `Pay ${usdc(quote.usdcAmount)} USDC`}
               </button>
             )}
 

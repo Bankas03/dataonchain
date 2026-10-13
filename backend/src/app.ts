@@ -6,6 +6,7 @@ import { auth } from "./auth";
 import { requireAuth } from "./auth/middleware";
 import { client } from "./db";
 import { env } from "./env";
+import { PaymentError, getOrderView, listOrders, payOrder } from "./payments/service";
 import { isNetwork, listDataPlans } from "./catalog/plans";
 import { QuoteError, createQuote, getQuote } from "./pricing/quote";
 import { NETWORK_NAMES, ensureUserWallet, getUsdcBalance } from "./wallets/service";
@@ -37,7 +38,7 @@ app.get("/health", async (c) => {
 });
 
 // Quick check that the API (and the website's /api pass through) is up.
-app.get("/api/status", (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true }));
+app.get("/api/status", (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true }));
 
 // Signup, login, logout, sessions (Better Auth)
 app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
@@ -115,6 +116,34 @@ app.get("/api/quotes/:reference", requireAuth, async (c) => {
   const quote = await getQuote(user.id, c.req.param("reference"));
   if (!quote) return c.json({ error: "Quote not found" }, 404);
   return c.json({ quote });
+});
+
+// Pay for a quoted order with USDC (user's wallet -> treasury)
+app.post("/api/orders/:reference/pay", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  if (!user.emailVerified) {
+    return c.json({ error: "Please confirm your email first" }, 403);
+  }
+  try {
+    return c.json({ order: await payOrder(user.id, c.req.param("reference")) });
+  } catch (err) {
+    if (err instanceof PaymentError) return c.json({ error: err.message }, err.status);
+    throw err;
+  }
+});
+
+// One order, with its payment checked against Circle while it is pending
+app.get("/api/orders/:reference", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  const order = await getOrderView(user.id, c.req.param("reference"));
+  if (!order) return c.json({ error: "Order not found" }, 404);
+  return c.json({ order });
+});
+
+// The signed in user's recent orders
+app.get("/api/orders", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  return c.json({ orders: await listOrders(user.id) });
 });
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));
