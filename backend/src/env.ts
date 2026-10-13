@@ -10,6 +10,14 @@ function required(name: string): string {
   return value;
 }
 
+function optionalNumber(name: string): number | undefined {
+  const raw = process.env[name];
+  if (!raw) return undefined;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) throw new Error(`${name} must be a positive number`);
+  return value;
+}
+
 const NODE_ENV = process.env.NODE_ENV ?? "development";
 
 export const env = {
@@ -33,4 +41,13 @@ export const env = {
   CIRCLE_ENTITY_SECRET: required("CIRCLE_ENTITY_SECRET"),
   CIRCLE_WALLET_SET_ID: required("CIRCLE_WALLET_SET_ID"),
   CIRCLE_BLOCKCHAIN: process.env.CIRCLE_BLOCKCHAIN ?? "ARC-TESTNET",
+  // VTpass
+  VTPASS_BASE_URL: (process.env.VTPASS_BASE_URL ?? "https://sandbox.vtpass.com/api").replace(/\/$/, ""),
+  VTPASS_API_KEY: required("VTPASS_API_KEY"),
+  VTPASS_PUBLIC_KEY: required("VTPASS_PUBLIC_KEY"),
+  VTPASS_SECRET_KEY: required("VTPASS_SECRET_KEY"),
+  // Pricing
+  PRICING_MARGIN_BPS: optionalNumber("PRICING_MARGIN_BPS") ?? 200,
+  QUOTE_TTL_MINUTES: optionalNumber("QUOTE_TTL_MINUTES") ?? 10,
+  NGN_PER_USDC: optionalNumber("NGN_PER_USDC"),
 };

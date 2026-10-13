@@ -6,6 +6,8 @@ import { auth } from "./auth";
 import { requireAuth } from "./auth/middleware";
 import { client } from "./db";
 import { env } from "./env";
+import { isNetwork, listDataPlans } from "./catalog/plans";
+import { QuoteError, createQuote, getQuote } from "./pricing/quote";
 import { NETWORK_NAMES, ensureUserWallet, getUsdcBalance } from "./wallets/service";
 
 export const app = new Hono();
@@ -35,7 +37,7 @@ app.get("/health", async (c) => {
 });
 
 // Quick check that the API (and the website's /api pass through) is up.
-app.get("/api/status", (c) => c.json({ ok: true, auth: true, email: true, wallets: true }));
+app.get("/api/status", (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true }));
 
 // Signup, login, logout, sessions (Better Auth)
 app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
@@ -79,6 +81,40 @@ app.get("/api/wallet", requireAuth, async (c) => {
     },
     balance: { usdc },
   });
+});
+
+// Data plans for one network (refreshed from VTpass every 6 hours)
+app.get("/api/plans", requireAuth, async (c) => {
+  const network = c.req.query("network");
+  if (!isNetwork(network)) {
+    return c.json({ error: "Choose a network: mtn, airtel, glo or 9mobile" }, 400);
+  }
+  const plans = await listDataPlans(network);
+  return c.json({
+    plans: plans.map((p) => ({ id: p.id, name: p.name, ngnAmount: p.priceKobo / 100, validity: p.validity })),
+  });
+});
+
+// A price in USDC, held for a few minutes
+app.post("/api/quotes", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  if (!user.emailVerified) {
+    return c.json({ error: "Please confirm your email first" }, 403);
+  }
+  const body = await c.req.json().catch(() => null);
+  try {
+    return c.json({ quote: await createQuote(user.id, body) });
+  } catch (err) {
+    if (err instanceof QuoteError) return c.json({ error: err.message }, 400);
+    throw err;
+  }
+});
+
+app.get("/api/quotes/:reference", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  const quote = await getQuote(user.id, c.req.param("reference"));
+  if (!quote) return c.json({ error: "Quote not found" }, 404);
+  return c.json({ quote });
 });
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));

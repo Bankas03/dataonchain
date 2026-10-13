@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { WalletCard } from "@/components/WalletCard";
@@ -47,6 +48,13 @@ export default function DashboardPage() {
         <h1 className="mt-10 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
           Hello, {user.name.split(" ")[0]}
         </h1>
+
+        <Link
+          href="/buy"
+          className="mt-4 inline-block rounded-lg bg-emerald-700 px-4 py-2.5 font-medium text-white hover:bg-emerald-800"
+        >
+          Buy airtime or data
+        </Link>
 
         <section className="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="text-sm font-medium text-zinc-500">Your account</h2>
