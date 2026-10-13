@@ -1,8 +1,6 @@
-// Calls the backend API. Every request to the backend goes through here.
-export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
-
+// Calls the backend through the website's /api pass through.
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`/api${path}`, {
     ...init,
     credentials: "include",
     headers: { "Content-Type": "application/json", ...init.headers },

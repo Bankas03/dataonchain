@@ -19,4 +19,6 @@ export const env = {
     .filter(Boolean),
   TURSO_DATABASE_URL: required("TURSO_DATABASE_URL"),
   TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN,
+  BETTER_AUTH_SECRET: required("BETTER_AUTH_SECRET"),
+  BETTER_AUTH_URL: required("BETTER_AUTH_URL").replace(/\/$/, ""),
 };

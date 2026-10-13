@@ -12,7 +12,7 @@
 #   3. Guides you through creating the backend on Render (one time, about
 #      5 minutes in the browser) and copies the secret token to your clipboard
 #   4. Waits until the Render API answers /health
-#   5. Tells Vercel where the API lives (NEXT_PUBLIC_API_URL) and deploys
+#   5. Tells Vercel where the API lives (API_URL) and deploys
 #   6. Checks the website loads and the API accepts calls from it
 #
 # Your production addresses are read from backend/.env:
@@ -221,8 +221,8 @@ green "OK: linked to $VERCEL_PROJECT"
 yellow "Reminder: on vercel.com, Settings > Build and Deployment > Root Directory must be 'frontend'."
 
 step "Telling the website where the API lives"
-printf '%s' "$API_URL" | vercel env add NEXT_PUBLIC_API_URL production --force --no-sensitive >/dev/null
-green "OK: NEXT_PUBLIC_API_URL = $API_URL"
+printf '%s' "$API_URL" | vercel env add API_URL production --force --no-sensitive >/dev/null
+green "OK: API_URL = $API_URL"
 
 step "Deploying the website"
 DEPLOY_URL="$(vercel deploy --prod --yes | tail -n1)"
