@@ -60,3 +60,78 @@ export function makeRequestId(): string {
   );
   return `${parts.year}${parts.month}${parts.day}${parts.hour}${parts.minute}${randomBytes(6).toString("hex")}`;
 }
+
+// ---------------------------------------------------------------------------
+// Buying (POST requests use the secret key)
+// ---------------------------------------------------------------------------
+export type VtOutcome = {
+  result: "DELIVERED" | "FAILED" | "PENDING";
+  code: string;
+  message: string;
+  providerReference?: string;
+  token?: string;
+  raw: unknown;
+};
+
+// Codes where VTpass did not complete the purchase (and does not charge).
+// 040 is a reversal: the money went back to the VTpass wallet.
+const FAILED_CODES = new Set(["016", "021", "022", "024", "027", "028", "030", "040", "085", "087", "091"]);
+
+async function vtPost(path: string, body: Record<string, unknown>): Promise<unknown> {
+  const res = await fetch(`${env.VTPASS_BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "api-key": env.VTPASS_API_KEY,
+      "secret-key": env.VTPASS_SECRET_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(45_000),
+  });
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`VTpass answered ${res.status} with something that is not JSON: ${text.slice(0, 200)}`);
+  }
+}
+
+// Turns any VTpass answer into DELIVERED, FAILED or PENDING.
+// Anything unclear is PENDING: it is asked about again, never resent.
+export function classify(body: unknown): VtOutcome {
+  const b = (body && typeof body === "object" ? body : {}) as {
+    code?: string | number;
+    response_description?: string;
+    purchased_code?: string;
+    content?: { transactions?: { status?: string; transactionId?: string | number } };
+  };
+  const code = String(b.code ?? "");
+  const status = String(b.content?.transactions?.status ?? "").toLowerCase();
+  const id = b.content?.transactions?.transactionId;
+  const base = {
+    code,
+    message: b.response_description || `VTpass code ${code || "none"}`,
+    providerReference: id !== undefined && id !== null && id !== "" ? String(id) : undefined,
+    token: b.purchased_code ? String(b.purchased_code) : undefined,
+    raw: body,
+  };
+  if (code === "000" && status === "delivered") return { result: "DELIVERED", ...base };
+  if (status === "failed" || status === "reversed" || FAILED_CODES.has(code)) return { result: "FAILED", ...base };
+  return { result: "PENDING", ...base };
+}
+
+export async function purchase(payload: Record<string, unknown>): Promise<VtOutcome> {
+  try {
+    return classify(await vtPost("/pay", payload));
+  } catch (err) {
+    return { result: "PENDING", code: "", message: `No clear answer from VTpass: ${err instanceof Error ? err.message : err}`, raw: null };
+  }
+}
+
+export async function requery(requestId: string): Promise<VtOutcome> {
+  try {
+    return classify(await vtPost("/requery", { request_id: requestId }));
+  } catch (err) {
+    return { result: "PENDING", code: "", message: `No clear answer from VTpass: ${err instanceof Error ? err.message : err}`, raw: null };
+  }
+}

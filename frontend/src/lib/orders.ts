@@ -12,6 +12,7 @@ export type OrderView = {
   expiresAt?: string;
   failureReason?: string | null;
   payment?: { status: string; txHash: string | null; explorerUrl: string | null } | null;
+  delivery?: { status: string; providerReference: string | null; requestId: string; token: string | null; message: string | null } | null;
 };
 
 export const NETWORK_LABELS: Record<string, string> = { mtn: "MTN", airtel: "Airtel", glo: "Glo", "9mobile": "9mobile" };
@@ -20,10 +21,10 @@ export const STATUS_LABELS: Record<string, { text: string; tone: "wait" | "good"
   QUOTED: { text: "Not paid", tone: "wait" },
   EXPIRED: { text: "Price expired", tone: "bad" },
   PAYMENT_PENDING: { text: "Payment in progress", tone: "wait" },
-  PAYMENT_CONFIRMED: { text: "Paid, waiting for delivery", tone: "good" },
+  PAYMENT_CONFIRMED: { text: "Paid, delivering", tone: "wait" },
   FULFILMENT_PENDING: { text: "Delivering", tone: "wait" },
   FULFILLED: { text: "Delivered", tone: "good" },
-  FAILED: { text: "Failed", tone: "bad" },
+  FAILED: { text: "Failed, to be refunded", tone: "bad" },
   FLAGGED: { text: "Under review", tone: "bad" },
   REFUNDED: { text: "Refunded", tone: "good" },
 };

@@ -11,6 +11,7 @@ import { circle } from "../circle/client";
 import { db } from "../db";
 import { auditLogs, dataPlans, ledgerEntries, orders, payments } from "../db/schema";
 import { env } from "../env";
+import { fulfilOrder, getDeliveryView, reconcileOrder } from "../fulfilment/service";
 import { microToUsdc } from "../pricing/quote";
 import { ensureUserWallet } from "../wallets/service";
 
@@ -241,6 +242,9 @@ export async function refreshPayment(order: Order): Promise<void> {
     { journalId, account: "treasury:usdc", orderId: order.id, currency: "USDC", debit: order.usdcAmountMicro, memo: `Payment ${order.reference}` },
     { journalId, account: `customer:${order.userId}`, orderId: order.id, currency: "USDC", credit: order.usdcAmountMicro, memo: `Payment ${order.reference}` },
   ]);
+
+  // Paid: deliver right away (the worker picks it up too if this fails)
+  void fulfilOrder(order.id).catch((err) => console.error(`[deliver] ${order.reference} failed:`, err));
 }
 
 async function flag(order: Order, payment: Payment, reason: string, tx: TransferFacts) {
@@ -266,6 +270,14 @@ export async function getOrderView(userId: string, reference: string) {
       await refreshPayment(order);
     } catch (err) {
       console.error(`[pay] refresh ${reference} failed:`, err);
+    }
+    order = (await findOrder(userId, reference)) ?? order;
+  } else if (order.status === "PAYMENT_CONFIRMED" || order.status === "FULFILMENT_PENDING") {
+    try {
+      if (order.status === "PAYMENT_CONFIRMED") await fulfilOrder(order.id);
+      else await reconcileOrder(order.id);
+    } catch (err) {
+      console.error(`[deliver] check ${reference} failed:`, err);
     }
     order = (await findOrder(userId, reference)) ?? order;
   } else if (order.status === "QUOTED" && order.quoteExpiresAt.getTime() < Date.now()) {
@@ -295,6 +307,7 @@ export async function getOrderView(userId: string, reference: string) {
     expiresAt: order.quoteExpiresAt.toISOString(),
     createdAt: order.createdAt.toISOString(),
     failureReason: order.failureReason,
+    delivery: await getDeliveryView(order.id),
     payment: payment
       ? {
           status: payment.status,

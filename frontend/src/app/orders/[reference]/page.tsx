@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { STATUS_LABELS, describe, naira, toneClass, usdc, type OrderView } from "@/lib/orders";
 
-const STILL_MOVING = ["PAYMENT_PENDING", "FULFILMENT_PENDING"];
+const STILL_MOVING = ["PAYMENT_PENDING", "PAYMENT_CONFIRMED", "FULFILMENT_PENDING"];
 
 export default function OrderPage() {
   const router = useRouter();
@@ -51,7 +51,7 @@ export default function OrderPage() {
     ? [
         { text: "Payment sent", done: Boolean(order.payment) },
         { text: "Payment confirmed on Arc", done: paid },
-        { text: "Airtime or data delivered", done: order.status === "FULFILLED" },
+        { text: order.serviceType === "data" ? "Data delivered" : "Airtime delivered", done: order.status === "FULFILLED" },
       ]
     : [];
 
@@ -99,9 +99,14 @@ export default function OrderPage() {
             {order.status === "PAYMENT_PENDING" ? (
               <p className="text-sm text-zinc-600 dark:text-zinc-400">Confirming your payment on Arc. This usually takes a few seconds...</p>
             ) : null}
-            {order.status === "PAYMENT_CONFIRMED" ? (
+            {order.status === "PAYMENT_CONFIRMED" || order.status === "FULFILMENT_PENDING" ? (
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                Payment received. Sending your {order.serviceType} to {order.phone}...
+              </p>
+            ) : null}
+            {order.status === "FULFILLED" ? (
               <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                Payment received. Automatic delivery is being switched on in the next update.
+                Done. Your {order.serviceType} has been sent to {order.phone}.
               </p>
             ) : null}
             {order.failureReason ? (
@@ -115,6 +120,20 @@ export default function OrderPage() {
               <dd className="text-zinc-900 dark:text-zinc-100">{naira(order.ngnAmount)}</dd>
               <dt className="text-zinc-500">Paid</dt>
               <dd className="text-zinc-900 dark:text-zinc-100">{usdc(order.usdcAmount)} USDC</dd>
+              <dt className="text-zinc-500">Date</dt>
+              <dd className="text-zinc-900 dark:text-zinc-100">{new Date(order.createdAt).toLocaleString("en-NG")}</dd>
+              {order.delivery?.providerReference ? (
+                <>
+                  <dt className="text-zinc-500">VTpass ref</dt>
+                  <dd className="font-mono text-zinc-900 dark:text-zinc-100">{order.delivery.providerReference}</dd>
+                </>
+              ) : null}
+              {order.delivery?.token ? (
+                <>
+                  <dt className="text-zinc-500">Token / PIN</dt>
+                  <dd className="font-mono text-zinc-900 dark:text-zinc-100">{order.delivery.token}</dd>
+                </>
+              ) : null}
               {order.payment?.txHash ? (
                 <>
                   <dt className="text-zinc-500">Transaction</dt>
@@ -129,8 +148,18 @@ export default function OrderPage() {
                   </dd>
                 </>
               ) : null}
+              <dt className="text-zinc-500">Reference</dt>
+              <dd className="font-mono text-zinc-900 dark:text-zinc-100">{order.reference}</dd>
             </dl>
 
+            {order.status === "FULFILLED" ? (
+              <button
+                onClick={() => window.print()}
+                className="block w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-center text-sm font-medium text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                Print or save receipt
+              </button>
+            ) : null}
             <Link href="/buy" className="block w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-center text-sm font-medium text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
               Buy something else
             </Link>

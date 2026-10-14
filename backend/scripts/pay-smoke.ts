@@ -5,7 +5,7 @@ import { writeFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
 import { circle } from "../src/circle/client";
 import { db } from "../src/db";
-import { ledgerEntries, orders, payments, users } from "../src/db/schema";
+import { ledgerEntries, orders, payments, users, vtuTransactions } from "../src/db/schema";
 import { createQuote } from "../src/pricing/quote";
 import { PaymentError, checkTransfer, getOrderView, payOrder, usdcToMicro } from "../src/payments/service";
 import { ensureUserWallet } from "../src/wallets/service";
@@ -59,7 +59,7 @@ async function main() {
 
   try {
     const started = await payOrder(payer.id, quote.reference);
-    check(started?.status === "PAYMENT_PENDING" || started?.status === "PAYMENT_CONFIRMED", "payment started");
+    check(["PAYMENT_PENDING", ...["PAYMENT_CONFIRMED", "FULFILMENT_PENDING", "FULFILLED"]].includes(started?.status ?? ""), "payment started");
     const [row] = await db.select().from(orders).where(eq(orders.reference, quote.reference)).limit(1);
     orderId = row?.id;
 
@@ -75,11 +75,12 @@ async function main() {
       process.stdout.write(".");
     }
     console.log("");
-    check(view?.status === "PAYMENT_CONFIRMED", `payment confirmed on Arc (status ${view?.status}${view?.failureReason ? `: ${view.failureReason}` : ""})`);
+    check(["PAYMENT_CONFIRMED", "FULFILMENT_PENDING", "FULFILLED"].includes(view?.status ?? ""), `payment confirmed on Arc (status ${view?.status}${view?.failureReason ? `: ${view.failureReason}` : ""})`);
     check(Boolean(view?.payment?.txHash), `transaction hash recorded (${view?.payment?.txHash})`);
     if (view?.payment?.explorerUrl) console.log(`See it on the explorer: ${view.payment.explorerUrl}`);
 
-    const lines = orderId ? await db.select().from(ledgerEntries).where(eq(ledgerEntries.orderId, orderId)) : [];
+    const lines = (orderId ? await db.select().from(ledgerEntries).where(eq(ledgerEntries.orderId, orderId)) : [])
+      .filter((l) => (l.memo ?? "").startsWith("Payment"));
     const debit = lines.reduce((s, l) => s + l.debit, 0);
     const credit = lines.reduce((s, l) => s + l.credit, 0);
     check(lines.length === 2 && debit === credit, "ledger entries written and balanced");
@@ -94,6 +95,13 @@ async function main() {
     // Remove the test order so Phase 9 never tries to deliver it. The USDC stays in the treasury.
     const [row] = await db.select().from(orders).where(eq(orders.reference, quote.reference)).limit(1);
     if (row) {
+      // Let the automatic delivery finish (VTpass sandbox) before removing the order.
+      for (let i = 0; i < 30; i++) {
+        const [now] = await db.select().from(orders).where(eq(orders.id, row.id)).limit(1);
+        if (!now || !['PAYMENT_CONFIRMED', 'FULFILMENT_PENDING'].includes(now.status)) break;
+        await new Promise((r) => setTimeout(r, 2_000));
+      }
+      await db.delete(vtuTransactions).where(eq(vtuTransactions.orderId, row.id));
       await db.delete(ledgerEntries).where(eq(ledgerEntries.orderId, row.id));
       await db.delete(payments).where(eq(payments.orderId, row.id));
       await db.delete(orders).where(eq(orders.id, row.id));

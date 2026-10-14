@@ -55,4 +55,6 @@ export const env = {
   TREASURY_ADDRESS: required("TREASURY_ADDRESS"),
   PAYMENT_FEE_BUFFER_USDC: optionalNumber("PAYMENT_FEE_BUFFER_USDC") ?? 0.02,
   EXPLORER_TX_URL: process.env.EXPLORER_TX_URL ?? "https://explorer.testnet.arc.io/tx/",
+  // Background worker: on in production unless WORKER_ENABLED=false
+  WORKER_ENABLED: (process.env.WORKER_ENABLED ?? (NODE_ENV === "production" ? "true" : "false")) === "true",
 };
