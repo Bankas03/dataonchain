@@ -5,9 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
-import { STATUS_LABELS, describe, naira, toneClass, usdc, type OrderView } from "@/lib/orders";
-
-const STILL_MOVING = ["PAYMENT_PENDING", "PAYMENT_CONFIRMED", "FULFILMENT_PENDING"];
+import { STATUS_LABELS, describe, naira, stillMoving, toneClass, usdc, type OrderView } from "@/lib/orders";
 
 export default function OrderPage() {
   const router = useRouter();
@@ -31,7 +29,7 @@ export default function OrderPage() {
         if (stop) return;
         setOrder(r.order);
         setError(null);
-        if (STILL_MOVING.includes(r.order.status)) timer = setTimeout(load, 3000);
+        if (stillMoving(r.order)) timer = setTimeout(load, r.order.status === "FLAGGED" ? 15000 : 3000);
       } catch (e) {
         if (stop) return;
         setError(e instanceof Error ? e.message : "Could not load this order.");
@@ -46,12 +44,19 @@ export default function OrderPage() {
   }, [session, reference]);
 
   const label = order ? (STATUS_LABELS[order.status] ?? { text: order.status, tone: "wait" as const }) : null;
-  const paid = order ? ["PAYMENT_CONFIRMED", "FULFILMENT_PENDING", "FULFILLED"].includes(order.status) : false;
-  const steps = order
+  const paid = order?.payment?.status === "CONFIRMED";
+  const refunding = order ? paid && ["FAILED", "REFUND_PENDING", "REFUNDED"].includes(order.status) : false;
+  const what = order?.serviceType === "data" ? "Data" : "Airtime";
+  const steps: { text: string; state: "done" | "todo" | "failed" }[] = order
     ? [
-        { text: "Payment sent", done: Boolean(order.payment) },
-        { text: "Payment confirmed on Arc", done: paid },
-        { text: order.serviceType === "data" ? "Data delivered" : "Airtime delivered", done: order.status === "FULFILLED" },
+        { text: "Payment sent", state: order.payment ? "done" : "todo" },
+        { text: "Payment confirmed on Arc", state: paid ? "done" : "todo" },
+        refunding
+          ? { text: `${what} could not be delivered`, state: "failed" }
+          : { text: `${what} delivered`, state: order.status === "FULFILLED" ? "done" : "todo" },
+        ...(refunding
+          ? [{ text: "USDC refunded to your wallet", state: order.status === "REFUNDED" ? ("done" as const) : ("todo" as const) }]
+          : []),
       ]
     : [];
 
@@ -86,12 +91,16 @@ export default function OrderPage() {
                 <li key={s.text} className="flex items-center gap-3 text-sm">
                   <span
                     className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
-                      s.done ? "bg-emerald-700 text-white" : "border border-zinc-300 text-zinc-400 dark:border-zinc-700"
+                      s.state === "done"
+                        ? "bg-emerald-700 text-white"
+                        : s.state === "failed"
+                          ? "bg-red-600 text-white"
+                          : "border border-zinc-300 text-zinc-400 dark:border-zinc-700"
                     }`}
                   >
-                    {s.done ? "✓" : ""}
+                    {s.state === "done" ? "✓" : s.state === "failed" ? "✕" : ""}
                   </span>
-                  <span className={s.done ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-500"}>{s.text}</span>
+                  <span className={s.state === "todo" ? "text-zinc-500" : "text-zinc-900 dark:text-zinc-100"}>{s.text}</span>
                 </li>
               ))}
             </ol>
@@ -102,7 +111,11 @@ export default function OrderPage() {
             {order.status === "PAYMENT_CONFIRMED" || order.status === "FULFILMENT_PENDING" ? (
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
                 Payment received. Sending your {order.serviceType} to {order.phone}...
+                {order.delivery?.message ? <span className="mt-1 block text-xs text-zinc-500">Network status: {order.delivery.message}</span> : null}
               </p>
+            ) : null}
+            {order.status === "REFUND_PENDING" || (order.status === "FAILED" && paid) ? (
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">Sending your USDC back to your wallet. This usually takes under a minute...</p>
             ) : null}
             {order.status === "FULFILLED" ? (
               <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
@@ -132,6 +145,20 @@ export default function OrderPage() {
                 <>
                   <dt className="text-zinc-500">Token / PIN</dt>
                   <dd className="font-mono text-zinc-900 dark:text-zinc-100">{order.delivery.token}</dd>
+                </>
+              ) : null}
+              {order.refund?.txHash ? (
+                <>
+                  <dt className="text-zinc-500">Refund</dt>
+                  <dd className="min-w-0">
+                    {order.refund.explorerUrl ? (
+                      <a href={order.refund.explorerUrl} target="_blank" rel="noreferrer" className="block truncate font-mono text-emerald-700 hover:underline dark:text-emerald-400">
+                        {order.refund.amount} USDC · {order.refund.txHash}
+                      </a>
+                    ) : (
+                      <span className="block truncate font-mono">{order.refund.txHash}</span>
+                    )}
+                  </dd>
                 </>
               ) : null}
               {order.payment?.txHash ? (

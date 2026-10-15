@@ -13,6 +13,7 @@ export type OrderView = {
   failureReason?: string | null;
   payment?: { status: string; txHash: string | null; explorerUrl: string | null } | null;
   delivery?: { status: string; providerReference: string | null; requestId: string; token: string | null; message: string | null } | null;
+  refund?: { status: string; amount: string; txHash: string | null; explorerUrl: string | null } | null;
 };
 
 export const NETWORK_LABELS: Record<string, string> = { mtn: "MTN", airtel: "Airtel", glo: "Glo", "9mobile": "9mobile" };
@@ -24,10 +25,18 @@ export const STATUS_LABELS: Record<string, { text: string; tone: "wait" | "good"
   PAYMENT_CONFIRMED: { text: "Paid, delivering", tone: "wait" },
   FULFILMENT_PENDING: { text: "Delivering", tone: "wait" },
   FULFILLED: { text: "Delivered", tone: "good" },
-  FAILED: { text: "Failed, to be refunded", tone: "bad" },
-  FLAGGED: { text: "Under review", tone: "bad" },
+  FAILED: { text: "Failed, refunding", tone: "bad" },
+  FLAGGED: { text: "Checking", tone: "wait" },
+  REFUND_PENDING: { text: "Refunding", tone: "wait" },
   REFUNDED: { text: "Refunded", tone: "good" },
 };
+
+// Orders that can still change on their own (the page keeps checking them)
+export function stillMoving(o: Pick<OrderView, "status" | "payment">) {
+  if (["PAYMENT_PENDING", "PAYMENT_CONFIRMED", "FULFILMENT_PENDING", "REFUND_PENDING", "FLAGGED"].includes(o.status)) return true;
+  // A failed delivery after a confirmed payment is about to be refunded
+  return o.status === "FAILED" && o.payment?.status === "CONFIRMED";
+}
 
 export function toneClass(tone: "wait" | "good" | "bad") {
   return tone === "good"

@@ -27,6 +27,8 @@ async function main() {
   check(classify({ code: "016" }).result === "FAILED", "016 counts as failed");
   check(classify({ code: "040" }).result === "FAILED", "040 (reversed) counts as failed");
   check(classify({ code: "028" }).result === "FAILED", "028 (product not whitelisted) counts as failed");
+  check(classify({ code: "018" }).result === "FAILED", "018 (VTpass wallet too low) counts as failed, so the customer is refunded");
+  check(classify({ code: "015" }).result === "PENDING", "015 (no record yet) is asked about again before giving up");
   check(classify(null).result === "PENDING", "no answer at all is asked about again, never resent");
 
   const rate = await getCurrentRate();

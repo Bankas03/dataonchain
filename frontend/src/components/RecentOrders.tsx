@@ -9,9 +9,30 @@ export function RecentOrders() {
   const [orders, setOrders] = useState<OrderView[] | null>(null);
 
   useEffect(() => {
-    api<{ orders: OrderView[] }>("/orders")
-      .then((r) => setOrders(r.orders))
-      .catch(() => setOrders([]));
+    let stop = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = async () => {
+      try {
+        const r = await api<{ orders: OrderView[] }>("/orders");
+        if (stop) return;
+        setOrders(r.orders);
+        // Keep the list live while any order is still changing
+        const recent = Date.now() - 15 * 60_000;
+        const moving = r.orders.some(
+          (o) =>
+            ["PAYMENT_PENDING", "PAYMENT_CONFIRMED", "FULFILMENT_PENDING", "REFUND_PENDING"].includes(o.status) ||
+            (o.status === "FAILED" && new Date(o.createdAt).getTime() > recent),
+        );
+        if (moving) timer = setTimeout(load, 5000);
+      } catch {
+        if (!stop) setOrders((prev) => prev ?? []);
+      }
+    };
+    void load();
+    return () => {
+      stop = true;
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   return (

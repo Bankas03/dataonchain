@@ -61,6 +61,7 @@ export const ORDER_STATUSES = [
   "FULFILLED",
   "FAILED",
   "FLAGGED",
+  "REFUND_PENDING",
   "REFUNDED",
 ] as const;
 
@@ -86,6 +87,8 @@ export const TREASURY_MOVEMENT_TYPES = [
   "GAS_TOPUP",
   "ADJUSTMENT",
 ] as const;
+
+export const REFUND_STATUSES = ["PENDING", "SENT", "CONFIRMED", "FAILED"] as const;
 
 export const WEBHOOK_SOURCES = ["circle", "vtpass"] as const;
 export const ACTOR_TYPES = ["user", "admin", "system"] as const;
@@ -364,6 +367,37 @@ export const treasuryMovements = sqliteTable("treasury_movements", {
   createdBy: text("created_by").references(() => users.id),
   createdAt: createdAt(),
 });
+
+// ---------------------------------------------------------------------------
+// Refunds: USDC sent back from the treasury to the customer's wallet when a
+// paid order could not be delivered. At most one refund per order.
+// ---------------------------------------------------------------------------
+export const refunds = sqliteTable(
+  "refunds",
+  {
+    id: id(),
+    orderId: text("order_id")
+      .notNull()
+      .unique()
+      .references(() => orders.id),
+    paymentId: text("payment_id")
+      .notNull()
+      .references(() => payments.id),
+    toAddress: text("to_address").notNull(),
+    token: text("token").notNull(),
+    blockchain: text("blockchain").notNull(),
+    amountMicro: integer("amount_micro").notNull(),
+    attempt: integer("attempt").notNull().default(1),
+    circleTransactionId: text("circle_transaction_id").unique(),
+    txHash: text("tx_hash").unique(),
+    status: text("status", { enum: REFUND_STATUSES }).notNull().default("PENDING"),
+    lastError: text("last_error"),
+    confirmedAt: integer("confirmed_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("refunds_status_idx").on(t.status)],
+);
 
 // ---------------------------------------------------------------------------
 // Webhooks: each event is stored once and processed once.

@@ -13,6 +13,7 @@ import { auditLogs, dataPlans, ledgerEntries, orders, payments } from "../db/sch
 import { env } from "../env";
 import { fulfilOrder, getDeliveryView, reconcileOrder } from "../fulfilment/service";
 import { microToUsdc } from "../pricing/quote";
+import { advanceRefund, getRefundView, startRefund } from "../refunds/service";
 import { ensureUserWallet } from "../wallets/service";
 
 export class PaymentError extends Error {
@@ -272,12 +273,20 @@ export async function getOrderView(userId: string, reference: string) {
       console.error(`[pay] refresh ${reference} failed:`, err);
     }
     order = (await findOrder(userId, reference)) ?? order;
-  } else if (order.status === "PAYMENT_CONFIRMED" || order.status === "FULFILMENT_PENDING") {
+  } else if (["PAYMENT_CONFIRMED", "FULFILMENT_PENDING", "FLAGGED"].includes(order.status)) {
     try {
       if (order.status === "PAYMENT_CONFIRMED") await fulfilOrder(order.id);
       else await reconcileOrder(order.id);
     } catch (err) {
       console.error(`[deliver] check ${reference} failed:`, err);
+    }
+    order = (await findOrder(userId, reference)) ?? order;
+  } else if (order.status === "FAILED" || order.status === "REFUND_PENDING") {
+    try {
+      if (order.status === "FAILED") await startRefund(order.id);
+      else await advanceRefund(order.id);
+    } catch (err) {
+      console.error(`[refund] check ${reference} failed:`, err instanceof Error ? err.message : err);
     }
     order = (await findOrder(userId, reference)) ?? order;
   } else if (order.status === "QUOTED" && order.quoteExpiresAt.getTime() < Date.now()) {
@@ -308,6 +317,7 @@ export async function getOrderView(userId: string, reference: string) {
     createdAt: order.createdAt.toISOString(),
     failureReason: order.failureReason,
     delivery: await getDeliveryView(order.id),
+    refund: await getRefundView(order.id),
     payment: payment
       ? {
           status: payment.status,
