@@ -50,6 +50,9 @@ export const SERVICE_TYPES = ["airtime", "data"] as const;
 export const VTU_PROVIDERS = ["vtpass", "reloadly", "baxi"] as const;
 export const WALLET_PURPOSES = ["user", "treasury", "gas"] as const;
 export const CUSTODY_TYPES = ["DEVELOPER", "USER"] as const;
+// EOA: plain wallet that pays its own gas. SCA: smart contract account, gas sponsored by Circle Gas Station.
+export const ACCOUNT_TYPES = ["EOA", "SCA"] as const;
+export const SWEEP_STATUSES = ["PENDING", "SENT", "CONFIRMED", "FAILED"] as const;
 export const CURRENCIES = ["USDC", "NGN"] as const;
 
 export const ORDER_STATUSES = [
@@ -185,11 +188,16 @@ export const wallets = sqliteTable(
       .default("DEVELOPER"),
     blockchain: text("blockchain").notNull(), // e.g. ARC-TESTNET
     address: text("address").notNull(),
+    accountType: text("account_type", { enum: ACCOUNT_TYPES }).notNull().default("EOA"),
+    // Set when the user moved to a newer wallet; its USDC is swept to the new one
+    retiredAt: integer("retired_at", { mode: "timestamp_ms" }),
+    // Last time a retired wallet was checked for USDC to sweep
+    checkedAt: integer("checked_at", { mode: "timestamp_ms" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
-    uniqueIndex("wallets_user_chain_idx").on(t.userId, t.blockchain),
+    uniqueIndex("wallets_user_chain_type_idx").on(t.userId, t.blockchain, t.accountType),
     index("wallets_address_idx").on(t.address),
   ],
 );
@@ -397,6 +405,38 @@ export const refunds = sqliteTable(
     updatedAt: updatedAt(),
   },
   (t) => [index("refunds_status_idx").on(t.status)],
+);
+
+// ---------------------------------------------------------------------------
+// Wallet sweeps: USDC moved from a user's old (retired) wallet to their
+// current wallet. open_key holds the old wallet id while a sweep is in
+// progress, so only one sweep per old wallet can be open at a time.
+// ---------------------------------------------------------------------------
+export const walletSweeps = sqliteTable(
+  "wallet_sweeps",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    fromWalletId: text("from_wallet_id")
+      .notNull()
+      .references(() => wallets.id),
+    toWalletId: text("to_wallet_id")
+      .notNull()
+      .references(() => wallets.id),
+    toAddress: text("to_address").notNull(),
+    token: text("token").notNull(),
+    amountMicro: integer("amount_micro").notNull(),
+    openKey: text("open_key").unique(),
+    circleTransactionId: text("circle_transaction_id").unique(),
+    txHash: text("tx_hash").unique(),
+    status: text("status", { enum: SWEEP_STATUSES }).notNull().default("PENDING"),
+    lastError: text("last_error"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("wallet_sweeps_status_idx").on(t.status)],
 );
 
 // ---------------------------------------------------------------------------

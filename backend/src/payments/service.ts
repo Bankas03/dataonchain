@@ -14,7 +14,7 @@ import { env } from "../env";
 import { fulfilOrder, getDeliveryView, reconcileOrder } from "../fulfilment/service";
 import { microToUsdc } from "../pricing/quote";
 import { advanceRefund, getRefundView, startRefund } from "../refunds/service";
-import { ensureUserWallet } from "../wallets/service";
+import { ensureUserWallet, previousWallet } from "../wallets/service";
 
 export class PaymentError extends Error {
   constructor(message: string, public status: 400 | 402 | 404 | 409 = 400) {
@@ -112,11 +112,21 @@ export async function payOrder(userId: string, reference: string) {
 
   const wallet = await ensureUserWallet(userId);
   const usdc = await usdcOf(wallet.circleWalletId);
-  const buffer = Math.round(env.PAYMENT_FEE_BUFFER_USDC * 1_000_000);
+  // Smart contract wallets: Circle Gas Station pays the network fee
+  const gasFree = wallet.accountType === "SCA";
+  const buffer = gasFree ? 0 : Math.round(env.PAYMENT_FEE_BUFFER_USDC * 1_000_000);
   const needed = order.usdcAmountMicro + buffer;
   if (!usdc || usdc.balanceMicro < needed) {
+    const old = await previousWallet(userId);
+    const oldBalance = old ? await usdcOf(old.circleWalletId) : null;
+    if (oldBalance && oldBalance.balanceMicro >= 20_000) {
+      throw new PaymentError(
+        "Your USDC is being moved to your upgraded wallet. This takes about a minute. Please try again shortly.",
+        409,
+      );
+    }
     throw new PaymentError(
-      `Not enough USDC. You need ${microToUsdc(needed)} USDC (price plus network fee). Your balance is ${microToUsdc(usdc?.balanceMicro ?? 0)} USDC.`,
+      `Not enough USDC. You need ${microToUsdc(needed)} USDC${gasFree ? "" : " (price plus network fee)"}. Your balance is ${microToUsdc(usdc?.balanceMicro ?? 0)} USDC.`,
       402,
     );
   }

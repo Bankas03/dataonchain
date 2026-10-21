@@ -15,6 +15,13 @@
       "when": 1792052183036,
       "tag": "0001_refunds",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792599119367,
+      "tag": "0002_smart_wallets",
+      "breakpoints": true
     }
   ]
 }

@@ -13,11 +13,13 @@ const EXPECTED_TABLES = [
   "ledger_entries",
   "orders",
   "payments",
+  "refunds",
   "sessions",
   "treasury_movements",
   "users",
   "verifications",
   "vtu_transactions",
+  "wallet_sweeps",
   "wallets",
   "webhook_events",
 ];

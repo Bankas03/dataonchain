@@ -16,6 +16,7 @@ import { circle } from "../circle/client";
 import { db } from "../db";
 import { auditLogs, ledgerEntries, orders, payments, refunds } from "../db/schema";
 import { env } from "../env";
+import { ensureUserWallet } from "../wallets/service";
 
 const MAX_ATTEMPTS = 3;
 const FAILED_STATES = ["FAILED", "DENIED", "CANCELLED"];
@@ -65,13 +66,15 @@ async function ensureRefundRow(order: Order): Promise<Refund | undefined> {
   const [existing] = await db.select().from(refunds).where(eq(refunds.orderId, order.id)).limit(1);
   if (existing) return existing;
   const payment = await confirmedPayment(order.id);
-  if (!payment?.fromAddress) return undefined;
+  if (!payment) return undefined;
+  // Refunds go to the user's current wallet (old wallets are retired)
+  const wallet = await ensureUserWallet(order.userId);
   await db
     .insert(refunds)
     .values({
       orderId: order.id,
       paymentId: payment.id,
-      toAddress: payment.fromAddress,
+      toAddress: wallet.address,
       token: payment.token,
       blockchain: payment.blockchain,
       amountMicro: payment.amountMicro,

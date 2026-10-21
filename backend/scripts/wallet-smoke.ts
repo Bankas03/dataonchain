@@ -29,6 +29,7 @@ async function main() {
   try {
     const first = await ensureUserWallet(userId);
     check(/^0x[0-9a-fA-F]{40}$/.test(first.address), "a wallet with a valid address was created", first);
+    check(first.accountType === "SCA", "new wallets are smart contract accounts (gas sponsored)");
 
     const second = await ensureUserWallet(userId);
     check(second.id === first.id && second.address === first.address, "the same wallet is reused, never a second one");

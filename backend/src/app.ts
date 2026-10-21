@@ -9,7 +9,7 @@ import { env } from "./env";
 import { PaymentError, getOrderView, listOrders, payOrder } from "./payments/service";
 import { isNetwork, listDataPlans } from "./catalog/plans";
 import { QuoteError, createQuote, getQuote } from "./pricing/quote";
-import { NETWORK_NAMES, ensureUserWallet, getUsdcBalance } from "./wallets/service";
+import { NETWORK_NAMES, ensureUserWallet, getUsdcBalance, previousWallet } from "./wallets/service";
 
 export const app = new Hono();
 
@@ -38,7 +38,7 @@ app.get("/health", async (c) => {
 });
 
 // Quick check that the API (and the website's /api pass through) is up.
-app.get("/api/status", (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true }));
+app.get("/api/status", (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true }));
 
 // Signup, login, logout, sessions (Better Auth)
 app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
@@ -73,12 +73,15 @@ app.get("/api/wallet", requireAuth, async (c) => {
   } catch (err) {
     console.error("[wallet] balance lookup failed:", err);
   }
+  const old = await previousWallet(user.id);
   return c.json({
     wallet: {
       address: wallet.address,
       blockchain: wallet.blockchain,
       network: NETWORK_NAMES[wallet.blockchain] ?? wallet.blockchain,
       testnet: wallet.blockchain.endsWith("TESTNET"),
+      gasFree: wallet.accountType === "SCA",
+      previousAddress: old?.address ?? null,
     },
     balance: { usdc },
   });

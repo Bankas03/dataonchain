@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
 type WalletResponse = {
-  wallet: { address: string; blockchain: string; network: string; testnet: boolean };
+  wallet: { address: string; blockchain: string; network: string; testnet: boolean; gasFree?: boolean; previousAddress?: string | null };
   balance: { usdc: string | null };
 };
 
@@ -97,6 +97,18 @@ export function WalletCard() {
               </button>
             </div>
           </div>
+
+          {data.wallet.gasFree ? (
+            <p className="text-sm text-emerald-800 dark:text-emerald-300">No network fees: Arc gas is covered for you.</p>
+          ) : null}
+
+          {data.wallet.previousAddress ? (
+            <p className="rounded-lg bg-zinc-100 px-3 py-2 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+              Your wallet was upgraded. Please use the address above from now on. Any USDC in or sent to your old address (
+              <span className="font-mono">{data.wallet.previousAddress.slice(0, 6)}...{data.wallet.previousAddress.slice(-4)}</span>) is moved
+              here automatically within a few minutes, minus a tiny network fee.
+            </p>
+          ) : null}
 
           {data.wallet.testnet ? (
             <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">

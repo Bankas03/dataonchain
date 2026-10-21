@@ -284,7 +284,7 @@ export default function BuyPage() {
             </dl>
 
             <p className="text-xs text-zinc-500">
-              A small Arc network fee (usually well under 0.01 USDC) is also paid from your wallet.
+              No network fee: the Arc gas for your payment is covered by dataonchain.
             </p>
 
             {expired ? (
