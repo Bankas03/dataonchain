@@ -1,5 +1,5 @@
 // The API: routes, CORS and error handling.
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { auth } from "./auth";
@@ -10,6 +10,7 @@ import { PaymentError, getOrderView, listOrders, payOrder } from "./payments/ser
 import { isNetwork, listDataPlans } from "./catalog/plans";
 import { QuoteError, createQuote, getQuote } from "./pricing/quote";
 import { NETWORK_NAMES, ensureUserWallet, getUsdcBalance, previousWallet } from "./wallets/service";
+import { BridgeUserError, bridgeBalance, getBridgeView, listBridges, listDestinations, quoteBridge, startBridge } from "./bridge/user";
 
 export const app = new Hono();
 
@@ -38,7 +39,7 @@ app.get("/health", async (c) => {
 });
 
 // Quick check that the API (and the website's /api pass through) is up.
-app.get("/api/status", (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true }));
+app.get("/api/status", (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridge: env.BRIDGE_ENABLED }));
 
 // Signup, login, logout, sessions (Better Auth)
 app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
@@ -83,6 +84,7 @@ app.get("/api/wallet", requireAuth, async (c) => {
       gasFree: wallet.accountType === "SCA",
       previousAddress: old?.address ?? null,
     },
+    bridgeBalance: await bridgeBalance(wallet.address),
     balance: { usdc },
   });
 });
@@ -147,6 +149,57 @@ app.get("/api/orders/:reference", requireAuth, async (c) => {
 app.get("/api/orders", requireAuth, async (c) => {
   const { user } = c.get("auth");
   return c.json({ orders: await listOrders(user.id) });
+});
+
+// ---------------------------------------------------------------------------
+// Bridge OUT: send USDC from the user's Arc wallet to an approved address on
+// another chain (Circle Gateway). Off unless BRIDGE_ENABLED=true.
+// ---------------------------------------------------------------------------
+function bridgeErrors(err: unknown, c: Context) {
+  if (err instanceof BridgeUserError) return c.json({ error: err.message }, err.status);
+  throw err;
+}
+
+app.get("/api/bridge/destinations", requireAuth, async (c) => {
+  try {
+    return c.json({ destinations: await listDestinations(), limits: { min: env.BRIDGE_MIN_USDC, max: env.BRIDGE_MAX_USDC, daily: env.BRIDGE_DAILY_USDC } });
+  } catch (err) {
+    return bridgeErrors(err, c);
+  }
+});
+
+app.post("/api/bridge/quote", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  if (!user.emailVerified) return c.json({ error: "Please confirm your email first" }, 403);
+  const body = (await c.req.json().catch(() => ({}))) as { destinationId?: unknown; amount?: unknown };
+  try {
+    return c.json({ quote: await quoteBridge(user.id, body) });
+  } catch (err) {
+    return bridgeErrors(err, c);
+  }
+});
+
+app.post("/api/bridge/transfers", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  if (!user.emailVerified) return c.json({ error: "Please confirm your email first" }, 403);
+  const body = (await c.req.json().catch(() => ({}))) as { destinationId?: unknown; amount?: unknown };
+  try {
+    return c.json({ transfer: await startBridge(user.id, body) });
+  } catch (err) {
+    return bridgeErrors(err, c);
+  }
+});
+
+app.get("/api/bridge/transfers", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  return c.json({ transfers: await listBridges(user.id) });
+});
+
+app.get("/api/bridge/transfers/:id", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  const transfer = await getBridgeView(user.id, c.req.param("id"));
+  if (!transfer) return c.json({ error: "Transfer not found" }, 404);
+  return c.json({ transfer });
 });
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));

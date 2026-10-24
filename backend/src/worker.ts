@@ -14,6 +14,9 @@ import { fulfilOrder, reconcileOrder } from "./fulfilment/service";
 import { refreshPayment } from "./payments/service";
 import { advanceRefund, startRefund } from "./refunds/service";
 import { runWalletUpgrades } from "./wallets/sweep";
+import { bridgeTransfers } from "./db/schema";
+import { advanceTransfer } from "./bridge/service";
+import { driving } from "./bridge/user";
 
 const EVERY_MS = 30_000;
 
@@ -49,6 +52,25 @@ export async function runWorkerOnce(): Promise<number> {
     } catch (err) {
       console.error(`[worker] ${order.reference} failed:`, err instanceof Error ? err.message : err);
     }
+  }
+  // Bridge transfers left behind (for example after a restart)
+  try {
+    const open = await db
+      .select({ id: bridgeTransfers.id })
+      .from(bridgeTransfers)
+      .where(inArray(bridgeTransfers.status, ["QUOTED", "DEPOSITING", "DEPOSITED", "FINALIZED", "INTENT_SIGNED", "SUBMITTED", "MINTED", "EXPIRED"]))
+      .limit(20);
+    for (const { id } of open) {
+      if (driving.has(id)) continue;
+      driving.add(id);
+      try {
+        await advanceTransfer(id);
+      } finally {
+        driving.delete(id);
+      }
+    }
+  } catch (err) {
+    console.error("[worker] bridge transfers failed:", err instanceof Error ? err.message : err);
   }
   try {
     await runWalletUpgrades();

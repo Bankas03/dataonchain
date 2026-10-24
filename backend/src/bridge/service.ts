@@ -14,10 +14,11 @@
 //   - OUT transfers only go to approved destinations
 //   - Gateway mints first and burns after; if the mint never happens the
 //     attestation expires and nothing is burned
+import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { circle } from "../circle/client";
 import { db } from "../db";
-import { approvedDestinations, auditLogs, bridgeEvents, bridgeTransfers } from "../db/schema";
+import { approvedDestinations, auditLogs, bridgeEvents, bridgeTransfers, ledgerEntries } from "../db/schema";
 import { env } from "../env";
 import { uuidFrom } from "../wallets/service";
 import { chainByKey, feeCapMicro, isEvmAddress, type BridgeChain } from "./chains";
@@ -59,8 +60,10 @@ async function move(t: Transfer, from: Status[], to: Status, extra: Partial<type
   return row;
 }
 
+// Fails the transfer only if it is still in the status this caller acted on,
+// so a slower caller can never undo progress made by another one.
 async function fail(t: Transfer, reason: string) {
-  const row = await move(t, ["QUOTED", "DEPOSITING", "DEPOSITED", "FINALIZED", "INTENT_SIGNED", "SUBMITTED", "EXPIRED"], "FAILED", {
+  const row = await move(t, [t.status], "FAILED", {
     failureReason: reason.slice(0, 500),
   });
   if (row) {
@@ -345,6 +348,13 @@ async function stepTrack(t: Transfer) {
 async function stepComplete(t: Transfer) {
   if (await move(t, ["MINTED"], "COMPLETE")) {
     await event(t.id, "complete", { chain: t.destinationChain, txHash: t.mintTxHash });
+    if (t.userId && t.direction === "OUT") {
+      const journalId = randomUUID();
+      await db.insert(ledgerEntries).values([
+        { journalId, account: `customer:${t.userId}`, currency: "USDC", debit: t.amountMicro, memo: `Bridge ${t.id} to ${t.destinationChain}` },
+        { journalId, account: `bridge:out:${t.destinationChain}`, currency: "USDC", credit: t.amountMicro, memo: `Bridge ${t.id} mint ${t.mintTxHash ?? ""}` },
+      ]);
+    }
     await db.insert(auditLogs).values({
       actorType: "system", action: "bridge.complete", targetType: "bridge_transfer", targetId: t.id,
       details: { amountMicro: t.amountMicro, from: t.sourceChain, to: t.destinationChain, mintTxHash: t.mintTxHash },

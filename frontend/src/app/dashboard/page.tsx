@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { RecentOrders } from "@/components/RecentOrders";
 import { WalletCard } from "@/components/WalletCard";
 import { authClient } from "@/lib/auth-client";
@@ -10,6 +10,15 @@ import { authClient } from "@/lib/auth-client";
 export default function DashboardPage() {
   const router = useRouter();
   const { data, isPending } = authClient.useSession();
+  const [bridgeOn, setBridgeOn] = useState(false);
+
+  // The "Send to a provider" button appears only when bridging is switched on
+  useEffect(() => {
+    fetch("/api/status")
+      .then((r) => r.json())
+      .then((s: { bridge?: boolean }) => setBridgeOn(Boolean(s.bridge)))
+      .catch(() => setBridgeOn(false));
+  }, []);
 
   useEffect(() => {
     if (isPending || data) return;
@@ -50,12 +59,22 @@ export default function DashboardPage() {
           Hello, {user.name.split(" ")[0]}
         </h1>
 
-        <Link
-          href="/buy"
-          className="mt-4 inline-block rounded-lg bg-emerald-700 px-4 py-2.5 font-medium text-white hover:bg-emerald-800"
-        >
-          Buy airtime or data
-        </Link>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            href="/buy"
+            className="inline-block rounded-lg bg-emerald-700 px-4 py-2.5 font-medium text-white hover:bg-emerald-800"
+          >
+            Buy airtime or data
+          </Link>
+          {bridgeOn ? (
+            <Link
+              href="/bridge"
+              className="inline-block rounded-lg border border-emerald-700 px-4 py-2.5 font-medium text-emerald-800 hover:bg-emerald-50 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-950"
+            >
+              Send to a provider
+            </Link>
+          ) : null}
+        </div>
 
         <section className="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="text-sm font-medium text-zinc-500">Your account</h2>

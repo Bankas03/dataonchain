@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 type WalletResponse = {
   wallet: { address: string; blockchain: string; network: string; testnet: boolean; gasFree?: boolean; previousAddress?: string | null };
   balance: { usdc: string | null };
+  bridgeBalance?: string | null;
 };
 
 function formatUsdc(amount: string | null): string {
@@ -74,6 +75,11 @@ export function WalletCard() {
             <p className="text-3xl font-semibold text-zinc-900 dark:text-zinc-50">
               {formatUsdc(data.balance.usdc)} <span className="text-lg font-medium text-zinc-500">USDC</span>
             </p>
+            {data.bridgeBalance && Number(data.bridgeBalance) > 0 ? (
+              <p className="mt-1 text-sm text-zinc-500">
+                Plus {formatUsdc(data.bridgeBalance)} USDC in your bridge balance (used first for your next transfer)
+              </p>
+            ) : null}
             <button
               onClick={load}
               disabled={loading}

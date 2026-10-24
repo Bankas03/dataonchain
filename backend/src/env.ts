@@ -61,6 +61,10 @@ export const env = {
     ((process.env.CIRCLE_BLOCKCHAIN ?? "ARC-TESTNET").endsWith("TESTNET")
       ? "https://gateway-api-testnet.circle.com"
       : "https://gateway-api.circle.com")).replace(/\/$/, ""),
+  // Limits for users bridging out (USDC)
+  BRIDGE_MIN_USDC: optionalNumber("BRIDGE_MIN_USDC") ?? 1,
+  BRIDGE_MAX_USDC: optionalNumber("BRIDGE_MAX_USDC") ?? 100,
+  BRIDGE_DAILY_USDC: optionalNumber("BRIDGE_DAILY_USDC") ?? 200,
   // The most Circle may take in fees for one bridge transfer (safety cap)
   BRIDGE_MAX_FEE_USDC: optionalNumber("BRIDGE_MAX_FEE_USDC") ?? 0.5,
   // Background worker: on in production unless WORKER_ENABLED=false
