@@ -55,6 +55,14 @@ export const env = {
   TREASURY_ADDRESS: required("TREASURY_ADDRESS"),
   PAYMENT_FEE_BUFFER_USDC: optionalNumber("PAYMENT_FEE_BUFFER_USDC") ?? 0.02,
   EXPLORER_TX_URL: process.env.EXPLORER_TX_URL ?? "https://explorer.testnet.arc.io/tx/",
+  // Bridge (Circle Gateway). Off until the user facing bridge ships.
+  BRIDGE_ENABLED: (process.env.BRIDGE_ENABLED ?? "false") === "true",
+  GATEWAY_API_URL: (process.env.GATEWAY_API_URL ??
+    ((process.env.CIRCLE_BLOCKCHAIN ?? "ARC-TESTNET").endsWith("TESTNET")
+      ? "https://gateway-api-testnet.circle.com"
+      : "https://gateway-api.circle.com")).replace(/\/$/, ""),
+  // The most Circle may take in fees for one bridge transfer (safety cap)
+  BRIDGE_MAX_FEE_USDC: optionalNumber("BRIDGE_MAX_FEE_USDC") ?? 0.5,
   // Background worker: on in production unless WORKER_ENABLED=false
   WORKER_ENABLED: (process.env.WORKER_ENABLED ?? (NODE_ENV === "production" ? "true" : "false")) === "true",
 };

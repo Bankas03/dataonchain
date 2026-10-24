@@ -7,7 +7,10 @@ config({ path: ".env", quiet: true });
 
 const EXPECTED_TABLES = [
   "accounts",
+  "approved_destinations",
   "audit_logs",
+  "bridge_events",
+  "bridge_transfers",
   "data_plans",
   "exchange_rates",
   "ledger_entries",

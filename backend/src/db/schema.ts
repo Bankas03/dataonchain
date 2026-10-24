@@ -53,6 +53,20 @@ export const CUSTODY_TYPES = ["DEVELOPER", "USER"] as const;
 // EOA: plain wallet that pays its own gas. SCA: smart contract account, gas sponsored by Circle Gas Station.
 export const ACCOUNT_TYPES = ["EOA", "SCA"] as const;
 export const SWEEP_STATUSES = ["PENDING", "SENT", "CONFIRMED", "FAILED"] as const;
+// Crosschain transfers through Circle Gateway (see src/bridge)
+export const BRIDGE_DIRECTIONS = ["OUT", "IN"] as const;
+export const BRIDGE_STATUSES = [
+  "QUOTED",        // fee estimated, nothing moved yet
+  "DEPOSITING",    // approve + deposit into the Gateway Wallet sent
+  "DEPOSITED",     // deposit confirmed onchain, waiting for Gateway finality
+  "FINALIZED",     // amount + fee available in the Gateway balance
+  "INTENT_SIGNED", // burn intent signed by the depositor wallet
+  "SUBMITTED",     // accepted by the Gateway API, waiting for the mint
+  "MINTED",        // USDC minted on the destination chain
+  "COMPLETE",      // checked and recorded
+  "EXPIRED",       // attestation expired before the mint: nothing burned, retry
+  "FAILED",        // stopped; see failure_reason
+] as const;
 export const CURRENCIES = ["USDC", "NGN"] as const;
 
 export const ORDER_STATUSES = [
@@ -454,6 +468,75 @@ export const webhookEvents = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("webhook_events_source_event_idx").on(t.source, t.eventId)],
+);
+
+// ---------------------------------------------------------------------------
+// Bridge (Circle Gateway): one row per crosschain transfer, and every step it
+// went through in bridge_events, from the deposit to the final mint.
+// ---------------------------------------------------------------------------
+export const bridgeTransfers = sqliteTable(
+  "bridge_transfers",
+  {
+    id: id(),
+    userId: text("user_id").references(() => users.id),
+    direction: text("direction", { enum: BRIDGE_DIRECTIONS }).notNull(),
+    sourceChain: text("source_chain").notNull(), // registry key, e.g. arc
+    destinationChain: text("destination_chain").notNull(),
+    sourceDomain: integer("source_domain").notNull(),
+    destinationDomain: integer("destination_domain").notNull(),
+    depositorWalletId: text("depositor_wallet_id").notNull(), // Circle wallet id
+    depositorAddress: text("depositor_address").notNull(),
+    recipientAddress: text("recipient_address").notNull(),
+    amountMicro: integer("amount_micro").notNull(), // what the recipient receives
+    maxFeeMicro: integer("max_fee_micro"),          // the most Circle may take
+    forwardingFeeMicro: integer("forwarding_fee_micro"),
+    salt: text("salt").notNull().unique(),
+    burnIntent: text("burn_intent", { mode: "json" }),
+    signature: text("signature"),
+    gatewayTransferId: text("gateway_transfer_id").unique(),
+    mintTxHash: text("mint_tx_hash"),
+    status: text("status", { enum: BRIDGE_STATUSES }).notNull().default("QUOTED"),
+    failureReason: text("failure_reason"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index("bridge_transfers_status_idx").on(t.status),
+    index("bridge_transfers_user_idx").on(t.userId),
+  ],
+);
+
+export const bridgeEvents = sqliteTable(
+  "bridge_events",
+  {
+    id: id(),
+    transferId: text("transfer_id")
+      .notNull()
+      .references(() => bridgeTransfers.id),
+    step: text("step").notNull(), // e.g. approve, deposit, finalized, signed, submitted, minted
+    chain: text("chain"),
+    txHash: text("tx_hash"),
+    circleTransactionId: text("circle_transaction_id"),
+    details: text("details", { mode: "json" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("bridge_events_transfer_idx").on(t.transferId)],
+);
+
+// Addresses USDC may be bridged OUT to (VTU providers). Nothing else is allowed.
+export const approvedDestinations = sqliteTable(
+  "approved_destinations",
+  {
+    id: id(),
+    label: text("label").notNull(),
+    chain: text("chain").notNull(), // registry key, e.g. base
+    address: text("address").notNull(), // stored lowercase
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    note: text("note"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("approved_destinations_chain_address_idx").on(t.chain, t.address)],
 );
 
 // ---------------------------------------------------------------------------
