@@ -66,3 +66,14 @@ export const STEP_LABELS: Record<string, string> = {
 };
 
 export const shortAddress = (a: string) => `${a.slice(0, 6)}...${a.slice(-4)}`;
+
+export type BridgeListItem = {
+  id: string;
+  direction: "OUT" | "IN";
+  status: string;
+  sourceChainLabel: string;
+  destinationChainLabel: string;
+  recipientAddress: string;
+  amount: string;
+  createdAt: string;
+};

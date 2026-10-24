@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
-import { shortAddress, type BridgeQuote, type BridgeView, type Destination } from "@/lib/bridge";
+import { BRIDGE_DONE, BRIDGE_LABELS, shortAddress, type BridgeListItem, type BridgeQuote, type BridgeView, type Destination } from "@/lib/bridge";
+import { toneClass } from "@/lib/orders";
 
 type Limits = { min: number; max: number; daily: number };
 
@@ -19,6 +20,7 @@ export default function BridgePage() {
   const [quote, setQuote] = useState<BridgeQuote | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState<BridgeListItem[]>([]);
 
   useEffect(() => {
     if (!isPending && !session) router.replace("/login");
@@ -36,6 +38,28 @@ export default function BridgePage() {
         setDestinations([]);
         setError(e instanceof Error ? e.message : "Could not load destinations.");
       });
+  }, [session]);
+
+  // Past transfers, refreshed every 10 seconds while any is still moving
+  useEffect(() => {
+    if (!session) return;
+    let stop = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = async () => {
+      try {
+        const r = await api<{ transfers: BridgeListItem[] }>("/bridge/transfers");
+        if (stop) return;
+        setHistory(r.transfers);
+        if (r.transfers.some((t) => !BRIDGE_DONE.includes(t.status))) timer = setTimeout(load, 10_000);
+      } catch {
+        // the list is optional; the form still works
+      }
+    };
+    void load();
+    return () => {
+      stop = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [session]);
 
   async function getQuote(e: FormEvent) {
@@ -223,6 +247,32 @@ export default function BridgePage() {
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>
           ) : null}
         </section>
+
+        {history.length > 0 ? (
+          <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+            <h2 className="text-sm font-medium text-zinc-500">Recent transfers</h2>
+            <ul className="mt-3 divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
+              {history.map((t) => {
+                const label = BRIDGE_LABELS[t.status] ?? { text: t.status, tone: "wait" as const };
+                return (
+                  <li key={t.id}>
+                    <Link href={`/bridge/${t.id}`} className="flex flex-wrap items-center justify-between gap-2 py-2.5 hover:opacity-80">
+                      <span className="min-w-0">
+                        <span className="block text-zinc-900 dark:text-zinc-100">
+                          {t.amount} USDC {t.sourceChainLabel} → {t.destinationChainLabel}
+                        </span>
+                        <span className="block text-xs text-zinc-500">
+                          {new Date(t.createdAt).toLocaleString("en-NG")} · <span className="font-mono">{shortAddress(t.recipientAddress)}</span>
+                        </span>
+                      </span>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${toneClass(label.tone)}`}>{label.text}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ) : null}
       </div>
     </main>
   );
