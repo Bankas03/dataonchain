@@ -85,10 +85,10 @@ export default function BridgePage() {
           </Link>
         </header>
 
-        <h1 className="mt-8 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Send to a provider</h1>
+        <h1 className="mt-8 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Send to another network</h1>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-          Send USDC from your Arc wallet to an approved provider on another network, through Circle Gateway. You pay no
-          gas on any network; Circle&apos;s fee is shown before you confirm.
+          Send USDC from your Arc wallet to your own wallet on another network, or to an approved provider, through
+          Circle Gateway. You pay no gas on any network; Circle&apos;s fee is shown before you confirm.
         </p>
 
         <section className="mt-6 space-y-5 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
@@ -100,7 +100,7 @@ export default function BridgePage() {
           {destinations && destinations.length > 0 ? (
             <form onSubmit={getQuote} className="space-y-5">
               <div>
-                <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Provider</p>
+                <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Send to</p>
                 <div className="mt-2 space-y-2">
                   {destinations.map((d) => (
                     <label
@@ -125,7 +125,12 @@ export default function BridgePage() {
                         <span className="font-medium text-zinc-900 dark:text-zinc-100">{d.label}</span>
                       </span>
                       <span className="text-xs text-zinc-500">
-                        {d.chainLabel} · <span className="font-mono">{shortAddress(d.address)}</span>
+                        {d.chainLabel}
+                        {d.address ? (
+                          <>
+                            {" "}· <span className="font-mono">{shortAddress(d.address)}</span>
+                          </>
+                        ) : null}
                       </span>
                     </label>
                   ))}

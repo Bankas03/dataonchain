@@ -117,7 +117,15 @@ export function buildSpec(p: {
   };
 }
 
-export type Estimate = { burnIntent: BurnIntent; maxFeeMicro: number; forwardingFeeMicro: number | null; raw: unknown };
+export type Estimate = { burnIntent: BurnIntent; maxFeeMicro: number; quotedFeeMicro: number; forwardingFeeMicro: number | null; raw: unknown };
+
+// Circle's forwarding fee follows destination gas prices and can rise in the
+// seconds between the estimate and the submission. We allow a margin of 10%
+// (at least 0.005 USDC). Circle only takes what it needs; the rest stays in the
+// depositor's Gateway balance and is used first next time.
+export function withMargin(feeMicro: number): number {
+  return feeMicro + Math.max(Math.ceil(feeMicro * 0.1), 5_000);
+}
 
 // Asks Gateway for the fee. Forwarding: Circle submits the mint on the destination chain.
 export async function estimate(spec: TransferSpec, forward = true): Promise<Estimate> {
@@ -127,10 +135,12 @@ export async function estimate(spec: TransferSpec, forward = true): Promise<Esti
   }>("POST", `/v1/estimate?enableForwarder=${forward}`, [{ spec }]);
   const est = res.body?.[0]?.burnIntent;
   if (!est) throw new GatewayError(`Gateway estimate returned no burn intent: ${json(res).slice(0, 300)}`);
-  const maxFee = String(est.maxFee);
+  const quoted = Number(est.maxFee);
+  const maxFeeMicro = withMargin(quoted);
   return {
-    burnIntent: { maxBlockHeight: String(est.maxBlockHeight ?? MAX_UINT256), maxFee, spec },
-    maxFeeMicro: Number(maxFee),
+    burnIntent: { maxBlockHeight: String(est.maxBlockHeight ?? MAX_UINT256), maxFee: String(maxFeeMicro), spec },
+    maxFeeMicro,
+    quotedFeeMicro: quoted,
     forwardingFeeMicro: res.fees?.forwardingFee ? microFromDecimal(String(res.fees.forwardingFee)) : null,
     raw: res,
   };

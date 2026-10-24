@@ -10,7 +10,7 @@ import { PaymentError, getOrderView, listOrders, payOrder } from "./payments/ser
 import { isNetwork, listDataPlans } from "./catalog/plans";
 import { QuoteError, createQuote, getQuote } from "./pricing/quote";
 import { NETWORK_NAMES, ensureUserWallet, getUsdcBalance, previousWallet } from "./wallets/service";
-import { BridgeUserError, bridgeBalance, getBridgeView, listBridges, listDestinations, quoteBridge, startBridge } from "./bridge/user";
+import { BridgeUserError, bridgeBalance, chainBalances, getBridgeView, listBridges, listDestinations, quoteBridge, returnToArc, startBridge } from "./bridge/user";
 
 export const app = new Hono();
 
@@ -39,7 +39,7 @@ app.get("/health", async (c) => {
 });
 
 // Quick check that the API (and the website's /api pass through) is up.
-app.get("/api/status", (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridge: env.BRIDGE_ENABLED }));
+app.get("/api/status", (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridge: env.BRIDGE_ENABLED }));
 
 // Signup, login, logout, sessions (Better Auth)
 app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
@@ -185,6 +185,28 @@ app.post("/api/bridge/transfers", requireAuth, async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { destinationId?: unknown; amount?: unknown };
   try {
     return c.json({ transfer: await startBridge(user.id, body) });
+  } catch (err) {
+    return bridgeErrors(err, c);
+  }
+});
+
+// The user's own wallets on other networks, with balances
+app.get("/api/bridge/wallets", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  try {
+    return c.json({ wallets: await chainBalances(user.id) });
+  } catch (err) {
+    return bridgeErrors(err, c);
+  }
+});
+
+// "Move to Arc": everything in the user's wallet on that network comes home
+app.post("/api/bridge/return", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  if (!user.emailVerified) return c.json({ error: "Please confirm your email first" }, 403);
+  const body = (await c.req.json().catch(() => ({}))) as { chain?: unknown };
+  try {
+    return c.json({ transfer: await returnToArc(user.id, body) });
   } catch (err) {
     return bridgeErrors(err, c);
   }

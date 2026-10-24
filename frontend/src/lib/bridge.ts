@@ -1,5 +1,7 @@
 // Shared bridge types and labels for the website.
-export type Destination = { id: string; label: string; chain: string; chainLabel: string; address: string };
+export type Destination = { id: string; label: string; chain: string; chainLabel: string; address: string | null; own: boolean };
+
+export type ChainWallet = { chain: string; chainLabel: string; address: string; explorerUrl: string; balance: string | null };
 
 export type BridgeQuote = {
   destination: { id: string; label: string; chainLabel: string; address: string };
@@ -16,7 +18,9 @@ export type BridgeStep = { step: string; chainLabel: string | null; txHash: stri
 
 export type BridgeView = {
   id: string;
+  direction: "OUT" | "IN";
   status: string;
+  slowFinality: boolean;
   destinationLabel: string;
   sourceLabel: string;
   destinationChainLabel: string;

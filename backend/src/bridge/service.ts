@@ -130,13 +130,16 @@ export async function createTransfer(p: {
   destinationChain: string;
   recipientAddress: string;
   amountMicro: number;
+  // The recipient is the user's own Circle wallet (checked by the caller), so it
+  // does not need to be on the approved list
+  trustedRecipient?: boolean;
 }): Promise<Transfer> {
   const source = chainByKey(p.sourceChain);
   const destination = chainByKey(p.destinationChain);
   if (source.key === destination.key) throw new BridgeError("Source and destination must be different chains.");
   if (!isEvmAddress(p.recipientAddress) || !isEvmAddress(p.depositorAddress)) throw new BridgeError("Invalid address.");
   if (!Number.isInteger(p.amountMicro) || p.amountMicro < 10_000) throw new BridgeError("The minimum is 0.01 USDC.");
-  if (p.direction === "OUT" && !(await isApprovedDestination(destination.key, p.recipientAddress))) {
+  if (p.direction === "OUT" && !p.trustedRecipient && !(await isApprovedDestination(destination.key, p.recipientAddress))) {
     throw new BridgeError("This address is not an approved destination.");
   }
 
@@ -318,7 +321,15 @@ async function stepSubmit(t: Transfer) {
     transferId = await submitTransfer(t.burnIntent as BurnIntent, t.signature, true);
   } catch (err) {
     const status = (err as { status?: number }).status;
-    // 4xx: Gateway refused it, so nothing was attested or burned
+    // 4xx: Gateway refused it, so nothing was attested or burned.
+    // If only the fee rose, check the price again and sign again.
+    const body = (err as { body?: string }).body ?? "";
+    if (status === 400 && /maxFee|forwarding fee/i.test(body)) {
+      if (await move(t, ["INTENT_SIGNED"], "FINALIZED", { signature: null })) {
+        await event(t.id, "requote", { details: { reason: body.slice(0, 300) } });
+      }
+      return;
+    }
     if (status && status >= 400 && status < 500) {
       await fail(t, err instanceof Error ? err.message : String(err));
       return;

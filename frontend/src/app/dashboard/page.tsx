@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ChainWallets } from "@/components/ChainWallets";
 import { RecentOrders } from "@/components/RecentOrders";
 import { WalletCard } from "@/components/WalletCard";
 import { authClient } from "@/lib/auth-client";
@@ -71,7 +72,7 @@ export default function DashboardPage() {
               href="/bridge"
               className="inline-block rounded-lg border border-emerald-700 px-4 py-2.5 font-medium text-emerald-800 hover:bg-emerald-50 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-950"
             >
-              Send to a provider
+              Send to another network
             </Link>
           ) : null}
         </div>
@@ -96,6 +97,7 @@ export default function DashboardPage() {
         </section>
 
         <WalletCard />
+        {bridgeOn ? <ChainWallets /> : null}
         <RecentOrders />
       </div>
     </main>
