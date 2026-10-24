@@ -17,6 +17,7 @@ import { runWalletUpgrades } from "./wallets/sweep";
 import { bridgeTransfers } from "./db/schema";
 import { advanceTransfer } from "./bridge/service";
 import { driving } from "./bridge/user";
+import { alertStuck, dailyReconcile } from "./bridge/monitor";
 
 const EVERY_MS = 30_000;
 
@@ -71,6 +72,13 @@ export async function runWorkerOnce(): Promise<number> {
     }
   } catch (err) {
     console.error("[worker] bridge transfers failed:", err instanceof Error ? err.message : err);
+  }
+  // Report stuck bridge transfers (once each) and run the daily reconciliation
+  try {
+    await alertStuck();
+    await dailyReconcile();
+  } catch (err) {
+    console.error("[worker] bridge monitoring failed:", err instanceof Error ? err.message : err);
   }
   try {
     await runWalletUpgrades();

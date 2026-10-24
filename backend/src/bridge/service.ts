@@ -41,6 +41,15 @@ type Status = Transfer["status"];
 const FAILED_STATES = ["FAILED", "DENIED", "CANCELLED"];
 
 async function event(transferId: string, step: string, fields: { chain?: string; txHash?: string | null; circleTransactionId?: string | null; details?: unknown } = {}) {
+  // A retried step returns the same Circle transaction: record it once
+  if (fields.circleTransactionId) {
+    const [seen] = await db
+      .select({ id: bridgeEvents.id })
+      .from(bridgeEvents)
+      .where(and(eq(bridgeEvents.transferId, transferId), eq(bridgeEvents.step, step), eq(bridgeEvents.circleTransactionId, fields.circleTransactionId)))
+      .limit(1);
+    if (seen) return;
+  }
   await db.insert(bridgeEvents).values({
     transferId,
     step,
@@ -91,7 +100,8 @@ async function contractCall(p: {
   } as unknown as Parameters<typeof circle.createContractExecutionTransaction>[0]);
   const id = res.data?.id;
   if (!id) throw new BridgeError(`Circle did not accept ${p.signature}`);
-  for (let i = 0; i < 60; i++) {
+  // Some testnets confirm slowly: wait up to 10 minutes
+  for (let i = 0; i < 200; i++) {
     const t = await circle.getTransaction({ id });
     const tx = t.data?.transaction as unknown as { state?: string; txHash?: string; errorReason?: string } | undefined;
     if (tx?.state === "COMPLETE") return { id, txHash: tx.txHash };
@@ -100,7 +110,7 @@ async function contractCall(p: {
     }
     await new Promise((r) => setTimeout(r, 3_000));
   }
-  throw new BridgeError(`${p.signature} did not finish in 3 minutes`);
+  throw new BridgeError(`${p.signature} did not finish in 10 minutes`);
 }
 
 // ---------------------------------------------------------------------------

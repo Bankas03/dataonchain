@@ -61,6 +61,8 @@ export const env = {
     ((process.env.CIRCLE_BLOCKCHAIN ?? "ARC-TESTNET").endsWith("TESTNET")
       ? "https://gateway-api-testnet.circle.com"
       : "https://gateway-api.circle.com")).replace(/\/$/, ""),
+  // Where bridge alerts and the daily bridge report are emailed (optional)
+  ALERT_EMAIL: process.env.ALERT_EMAIL?.trim() || undefined,
   // Limits for users bridging out (USDC)
   BRIDGE_MIN_USDC: optionalNumber("BRIDGE_MIN_USDC") ?? 1,
   BRIDGE_MAX_USDC: optionalNumber("BRIDGE_MAX_USDC") ?? 100,
