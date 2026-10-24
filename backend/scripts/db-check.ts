@@ -18,6 +18,7 @@ const EXPECTED_TABLES = [
   "payments",
   "refunds",
   "sessions",
+  "swaps",
   "treasury_movements",
   "users",
   "verifications",

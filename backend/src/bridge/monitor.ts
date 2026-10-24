@@ -12,6 +12,7 @@ import { sendEmail } from "../email";
 import { env } from "../env";
 import { bridgeChains, chainByKey } from "./chains";
 import { gatewayBalanceMicro, getTransfer } from "./gateway";
+import { swapSummary } from "../swap/service";
 
 type Transfer = typeof bridgeTransfers.$inferSelect;
 
@@ -157,6 +158,11 @@ export async function reconcile(): Promise<Report> {
   }
   lines.push(`Held in Circle Gateway for users: ${usdc(held)} USDC across ${pairs.length} wallet(s)` +
     (Object.keys(perChain).length ? ` (${bridgeChains().filter((c) => perChain[c.key]).map((c) => `${c.label} ${usdc(perChain[c.key]!)}`).join(", ")})` : ""));
+
+  // Swaps on Arc
+  const s = await swapSummary(since);
+  lines.push(`Swaps, last 24 hours: ${s.complete} complete, ${s.failed} failed (nothing taken).`);
+  for (const u of s.unknown) issues.push(`Swap needs a check (interrupted or unclear): ${u}`);
 
   return { generatedAt: new Date().toISOString(), issues, lines };
 }

@@ -7,6 +7,7 @@ type WalletResponse = {
   wallet: { address: string; blockchain: string; network: string; testnet: boolean; gasFree?: boolean; previousAddress?: string | null };
   balance: { usdc: string | null };
   bridgeBalance?: string | null;
+  tokens?: { EURC: string; cirBTC: string } | null;
 };
 
 function formatUsdc(amount: string | null): string {
@@ -75,6 +76,17 @@ export function WalletCard() {
             <p className="text-3xl font-semibold text-zinc-900 dark:text-zinc-50">
               {formatUsdc(data.balance.usdc)} <span className="text-lg font-medium text-zinc-500">USDC</span>
             </p>
+            {data.tokens && (Number(data.tokens.EURC) > 0 || Number(data.tokens.cirBTC) > 0) ? (
+              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                Also:{" "}
+                {[
+                  Number(data.tokens.EURC) > 0 ? `${Number(data.tokens.EURC).toLocaleString("en-US", { maximumFractionDigits: 6 })} EURC` : null,
+                  Number(data.tokens.cirBTC) > 0 ? `${Number(data.tokens.cirBTC).toLocaleString("en-US", { maximumFractionDigits: 8 })} cirBTC` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            ) : null}
             {data.bridgeBalance && Number(data.bridgeBalance) > 0 ? (
               <p className="mt-1 text-sm text-zinc-500">
                 Plus {formatUsdc(data.bridgeBalance)} USDC in your bridge balance (used first for your next transfer)

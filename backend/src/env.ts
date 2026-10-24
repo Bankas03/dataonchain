@@ -61,6 +61,11 @@ export const env = {
     ((process.env.CIRCLE_BLOCKCHAIN ?? "ARC-TESTNET").endsWith("TESTNET")
       ? "https://gateway-api-testnet.circle.com"
       : "https://gateway-api.circle.com")).replace(/\/$/, ""),
+  // Swaps on Arc (Circle App Kit). Off until switched on.
+  SWAP_ENABLED: (process.env.SWAP_ENABLED ?? "false") === "true",
+  SWAP_FEE_BPS: Number(process.env.SWAP_FEE_BPS ?? 50), // 0.5%, paid to the treasury
+  SWAP_SLIPPAGE_BPS: Number(process.env.SWAP_SLIPPAGE_BPS ?? 100), // 1%
+  SWAP_DAILY_COUNT: Number(process.env.SWAP_DAILY_COUNT ?? 20),
   // Where bridge alerts and the daily bridge report are emailed (optional)
   ALERT_EMAIL: process.env.ALERT_EMAIL?.trim() || undefined,
   // Limits for users bridging out (USDC)

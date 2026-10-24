@@ -53,6 +53,9 @@ export const CUSTODY_TYPES = ["DEVELOPER", "USER"] as const;
 // EOA: plain wallet that pays its own gas. SCA: smart contract account, gas sponsored by Circle Gas Station.
 export const ACCOUNT_TYPES = ["EOA", "SCA"] as const;
 export const SWEEP_STATUSES = ["PENDING", "SENT", "CONFIRMED", "FAILED"] as const;
+// Token swaps on Arc (Circle App Kit): USDC, EURC, cirBTC
+export const SWAP_TOKENS = ["USDC", "EURC", "cirBTC"] as const;
+export const SWAP_STATUSES = ["PENDING", "COMPLETE", "FAILED", "UNKNOWN"] as const;
 // Crosschain transfers through Circle Gateway (see src/bridge)
 export const BRIDGE_DIRECTIONS = ["OUT", "IN"] as const;
 export const BRIDGE_STATUSES = [
@@ -537,6 +540,38 @@ export const approvedDestinations = sqliteTable(
     updatedAt: updatedAt(),
   },
   (t) => [uniqueIndex("approved_destinations_chain_address_idx").on(t.chain, t.address)],
+);
+
+// ---------------------------------------------------------------------------
+// Swaps on Arc. open_key holds the user id while a swap is running, so a user
+// can only have one swap in progress at a time (double clicks cannot swap twice).
+// Amounts are decimal strings in token units (cirBTC has 8 decimals).
+// ---------------------------------------------------------------------------
+export const swaps = sqliteTable(
+  "swaps",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    walletAddress: text("wallet_address").notNull(),
+    tokenIn: text("token_in", { enum: SWAP_TOKENS }).notNull(),
+    tokenOut: text("token_out", { enum: SWAP_TOKENS }).notNull(),
+    amountIn: text("amount_in").notNull(),
+    estimatedOut: text("estimated_out"),
+    minOut: text("min_out"),
+    amountOut: text("amount_out"),
+    feeBps: integer("fee_bps").notNull(),
+    slippageBps: integer("slippage_bps").notNull(),
+    txHash: text("tx_hash"),
+    status: text("status", { enum: SWAP_STATUSES }).notNull().default("PENDING"),
+    error: text("error"),
+    details: text("details", { mode: "json" }),
+    openKey: text("open_key").unique(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("swaps_user_idx").on(t.userId), index("swaps_status_idx").on(t.status)],
 );
 
 // ---------------------------------------------------------------------------

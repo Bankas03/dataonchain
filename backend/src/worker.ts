@@ -18,6 +18,7 @@ import { bridgeTransfers } from "./db/schema";
 import { advanceTransfer } from "./bridge/service";
 import { driving } from "./bridge/user";
 import { alertStuck, dailyReconcile } from "./bridge/monitor";
+import { releaseAbandonedSwaps } from "./swap/service";
 
 const EVERY_MS = 30_000;
 
@@ -79,6 +80,11 @@ export async function runWorkerOnce(): Promise<number> {
     await dailyReconcile();
   } catch (err) {
     console.error("[worker] bridge monitoring failed:", err instanceof Error ? err.message : err);
+  }
+  try {
+    await releaseAbandonedSwaps();
+  } catch (err) {
+    console.error("[worker] swaps check failed:", err instanceof Error ? err.message : err);
   }
   try {
     await runWalletUpgrades();

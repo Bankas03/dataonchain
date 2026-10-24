@@ -12,12 +12,16 @@ export default function DashboardPage() {
   const router = useRouter();
   const { data, isPending } = authClient.useSession();
   const [bridgeOn, setBridgeOn] = useState(false);
+  const [swapOn, setSwapOn] = useState(false);
 
   // The "Send to a provider" button appears only when bridging is switched on
   useEffect(() => {
     fetch("/api/status")
       .then((r) => r.json())
-      .then((s: { bridge?: boolean }) => setBridgeOn(Boolean(s.bridge)))
+      .then((s: { bridge?: boolean; swap?: boolean }) => {
+        setBridgeOn(Boolean(s.bridge));
+        setSwapOn(Boolean(s.swap));
+      })
       .catch(() => setBridgeOn(false));
   }, []);
 
@@ -67,6 +71,14 @@ export default function DashboardPage() {
           >
             Buy airtime or data
           </Link>
+          {swapOn ? (
+            <Link
+              href="/swap"
+              className="inline-block rounded-lg border border-emerald-700 px-4 py-2.5 font-medium text-emerald-800 hover:bg-emerald-50 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-950"
+            >
+              Swap
+            </Link>
+          ) : null}
           {bridgeOn ? (
             <Link
               href="/bridge"

@@ -9,7 +9,8 @@ import { env } from "./env";
 import { PaymentError, getOrderView, listOrders, payOrder } from "./payments/service";
 import { isNetwork, listDataPlans } from "./catalog/plans";
 import { QuoteError, createQuote, getQuote } from "./pricing/quote";
-import { NETWORK_NAMES, ensureUserWallet, getUsdcBalance, previousWallet } from "./wallets/service";
+import { NETWORK_NAMES, ensureUserWallet, previousWallet } from "./wallets/service";
+import { SwapError, TOKENS, executeSwap, listSwaps, quoteSwap, tokenBalances } from "./swap/service";
 import { BridgeUserError, bridgeBalance, chainBalances, getBridgeView, listBridges, listDestinations, quoteBridge, returnToArc, startBridge } from "./bridge/user";
 
 export const app = new Hono();
@@ -39,7 +40,7 @@ app.get("/health", async (c) => {
 });
 
 // Quick check that the API (and the website's /api pass through) is up.
-app.get("/api/status", (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridgeMonitor: true, bridge: env.BRIDGE_ENABLED }));
+app.get("/api/status", (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridgeMonitor: true, swapCode: true, bridge: env.BRIDGE_ENABLED, swap: env.SWAP_ENABLED }));
 
 // Signup, login, logout, sessions (Better Auth)
 app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
@@ -69,8 +70,11 @@ app.get("/api/wallet", requireAuth, async (c) => {
   }
   const wallet = await ensureUserWallet(user.id);
   let usdc: string | null = null;
+  let tokens: { EURC: string; cirBTC: string } | null = null;
   try {
-    usdc = await getUsdcBalance(wallet.circleWalletId);
+    const all = await tokenBalances(wallet.circleWalletId);
+    usdc = all.USDC;
+    tokens = { EURC: all.EURC, cirBTC: all.cirBTC };
   } catch (err) {
     console.error("[wallet] balance lookup failed:", err);
   }
@@ -86,6 +90,7 @@ app.get("/api/wallet", requireAuth, async (c) => {
     },
     bridgeBalance: await bridgeBalance(wallet.address),
     balance: { usdc },
+    tokens,
   });
 });
 
@@ -222,6 +227,53 @@ app.get("/api/bridge/transfers/:id", requireAuth, async (c) => {
   const transfer = await getBridgeView(user.id, c.req.param("id"));
   if (!transfer) return c.json({ error: "Transfer not found" }, 404);
   return c.json({ transfer });
+});
+
+// ---------------------------------------------------------------------------
+// Swaps on Arc: USDC, EURC, cirBTC (Circle App Kit). Off unless SWAP_ENABLED=true.
+// ---------------------------------------------------------------------------
+function swapErrors(err: unknown, c: Context) {
+  if (err instanceof SwapError) return c.json({ error: err.message }, err.status);
+  throw err;
+}
+
+app.get("/api/swap/tokens", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  if (!env.SWAP_ENABLED) return c.json({ error: "Swaps are not available yet." }, 503);
+  const wallet = await ensureUserWallet(user.id);
+  return c.json({
+    balances: await tokenBalances(wallet.circleWalletId),
+    limits: TOKENS,
+    feePercent: env.SWAP_FEE_BPS / 100,
+    slippagePercent: env.SWAP_SLIPPAGE_BPS / 100,
+  });
+});
+
+app.post("/api/swap/quote", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  if (!user.emailVerified) return c.json({ error: "Please confirm your email first" }, 403);
+  const body = (await c.req.json().catch(() => ({}))) as { tokenIn?: unknown; tokenOut?: unknown; amount?: unknown };
+  try {
+    return c.json({ quote: await quoteSwap(user.id, body) });
+  } catch (err) {
+    return swapErrors(err, c);
+  }
+});
+
+app.post("/api/swap", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  if (!user.emailVerified) return c.json({ error: "Please confirm your email first" }, 403);
+  const body = (await c.req.json().catch(() => ({}))) as { tokenIn?: unknown; tokenOut?: unknown; amount?: unknown };
+  try {
+    return c.json({ swap: await executeSwap(user.id, body) });
+  } catch (err) {
+    return swapErrors(err, c);
+  }
+});
+
+app.get("/api/swaps", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  return c.json({ swaps: await listSwaps(user.id) });
 });
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));

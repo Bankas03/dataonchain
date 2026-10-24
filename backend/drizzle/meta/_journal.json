@@ -29,6 +29,13 @@
       "when": 1792847374418,
       "tag": "0003_bridge_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1792859044978,
+      "tag": "0004_swaps",
+      "breakpoints": true
     }
   ]
 }
