@@ -46,3 +46,40 @@ export function verificationEmail(name: string, url: string) {
 
   return { subject, text, html };
 }
+
+// A short email with optional big code or button. Used by the admin dashboard.
+export function noticeEmail(p: { subject: string; lines: string[]; code?: string; button?: { label: string; url: string }; footer?: string }) {
+  const text = [
+    ...p.lines,
+    ...(p.code ? ["", p.code] : []),
+    ...(p.button ? ["", `${p.button.label}: ${p.button.url}`] : []),
+    ...(p.footer ? ["", p.footer] : []),
+    "",
+    "dataonchain",
+  ].join("\n");
+  const paragraphs = p.lines
+    .map((l) => `<tr><td style="padding-top:12px;font-size:15px;line-height:1.5;">${escapeHtml(l)}</td></tr>`)
+    .join("");
+  const code = p.code
+    ? `<tr><td style="padding-top:20px;font-size:32px;font-weight:bold;letter-spacing:8px;font-family:monospace;">${escapeHtml(p.code)}</td></tr>`
+    : "";
+  const button = p.button
+    ? `<tr><td style="padding-top:24px;"><a href="${escapeHtml(p.button.url)}" style="display:inline-block;background:#047857;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:8px;">${escapeHtml(p.button.label)}</a></td></tr>
+<tr><td style="padding-top:16px;font-size:13px;line-height:1.5;color:#71717a;">If the button does not work, copy this address into your browser:<br><span style="word-break:break-all;">${escapeHtml(p.button.url)}</span></td></tr>`
+    : "";
+  const footer = p.footer ? `<tr><td style="padding-top:24px;font-size:13px;line-height:1.5;color:#71717a;">${escapeHtml(p.footer)}</td></tr>` : "";
+  const html = `<!doctype html>
+<html>
+  <body style="margin:0;padding:24px;background:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#18181b;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr><td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:12px;padding:32px;">
+          <tr><td style="font-size:18px;font-weight:bold;color:#047857;">dataonchain admin</td></tr>
+          ${paragraphs}${code}${button}${footer}
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>`;
+  return { subject: p.subject, text, html };
+}

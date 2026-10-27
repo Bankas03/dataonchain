@@ -13,14 +13,20 @@ export default function DashboardPage() {
   const { data, isPending } = authClient.useSession();
   const [bridgeOn, setBridgeOn] = useState(false);
   const [swapOn, setSwapOn] = useState(false);
+  const [paused, setPaused] = useState<string[]>([]);
 
   // The "Send to a provider" button appears only when bridging is switched on
   useEffect(() => {
     fetch("/api/status")
       .then((r) => r.json())
-      .then((s: { bridge?: boolean; swap?: boolean }) => {
+      .then((s: { bridge?: boolean; swap?: boolean; paused?: { purchasesPaused?: boolean; bridgePaused?: boolean; swapPaused?: boolean } }) => {
         setBridgeOn(Boolean(s.bridge));
         setSwapOn(Boolean(s.swap));
+        const parts: string[] = [];
+        if (s.paused?.purchasesPaused) parts.push("buying airtime and data");
+        if (s.paused?.bridgePaused && s.bridge) parts.push("sending to other networks");
+        if (s.paused?.swapPaused && s.swap) parts.push("swaps");
+        setPaused(parts);
       })
       .catch(() => setBridgeOn(false));
   }, []);
@@ -63,6 +69,18 @@ export default function DashboardPage() {
         <h1 className="mt-10 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
           Hello, {user.name.split(" ")[0]}
         </h1>
+
+        {user.status === "suspended" ? (
+          <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+            Your account is suspended. Please contact support. Orders already in progress still complete, and refunds
+            still go out.
+          </p>
+        ) : null}
+        {paused.length > 0 ? (
+          <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+            Short maintenance: {paused.join(", ")} {paused.length > 1 ? "are" : "is"} paused for now. Your balance is safe.
+          </p>
+        ) : null}
 
         <div className="mt-4 flex flex-wrap gap-3">
           <Link

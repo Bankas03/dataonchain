@@ -7,6 +7,10 @@ config({ path: ".env", quiet: true });
 
 const EXPECTED_TABLES = [
   "accounts",
+  "admin_accounts",
+  "admin_reset_tokens",
+  "admin_sessions",
+  "app_settings",
   "approved_destinations",
   "audit_logs",
   "bridge_events",

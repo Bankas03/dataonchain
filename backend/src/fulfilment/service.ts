@@ -166,7 +166,8 @@ async function failOrder(order: Order, reason: string) {
 // Moves an unsettled order forward by asking VTpass about it.
 // Works for FULFILMENT_PENDING orders and for FLAGGED orders that were
 // flagged because VTpass gave no clear answer.
-export async function reconcileOrder(orderId: string): Promise<void> {
+// force: an admin asked to check now, so the waiting times are skipped.
+export async function reconcileOrder(orderId: string, force = false): Promise<void> {
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
   if (!order || !(OPEN_ORDER as readonly string[]).includes(order.status)) return;
 
@@ -192,7 +193,9 @@ export async function reconcileOrder(orderId: string): Promise<void> {
 
   const age = Date.now() - tx.createdAt.getTime();
   const sinceLastAsk = Date.now() - tx.updatedAt.getTime();
-  if (order.status === "FLAGGED") {
+  if (force) {
+    // checked right away
+  } else if (order.status === "FLAGGED") {
     if (age > FLAGGED_GIVE_UP_MS || sinceLastAsk < FLAGGED_REQUERY_AFTER_MS) return;
   } else if (sinceLastAsk < REQUERY_AFTER_MS) {
     return;

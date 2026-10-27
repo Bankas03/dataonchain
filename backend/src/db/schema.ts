@@ -591,3 +591,66 @@ export const auditLogs = sqliteTable(
   },
   (t) => [index("audit_logs_target_idx").on(t.targetType, t.targetId)],
 );
+
+// ---------------------------------------------------------------------------
+// Admin dashboard. There is one admin: the email in ADMIN_EMAIL (set on
+// Render). Passwords are stored only as scrypt hashes; session tokens, login
+// codes and reset tokens only as hashes, so a database copy cannot log in.
+// ---------------------------------------------------------------------------
+export const ADMIN_SESSION_STAGES = ["code", "active"] as const;
+
+export const adminAccounts = sqliteTable("admin_accounts", {
+  id: id(),
+  email: text("email").notNull().unique(), // lowercase
+  passwordHash: text("password_hash"),     // empty until set with "Forgot password"
+  failedAttempts: integer("failed_attempts").notNull().default(0),
+  lockedUntil: integer("locked_until", { mode: "timestamp_ms" }),
+  passwordChangedAt: integer("password_changed_at", { mode: "timestamp_ms" }),
+  lastLoginAt: integer("last_login_at", { mode: "timestamp_ms" }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+// A login waits in stage "code" until the emailed code is entered.
+export const adminSessions = sqliteTable(
+  "admin_sessions",
+  {
+    id: id(),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => adminAccounts.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    stage: text("stage", { enum: ADMIN_SESSION_STAGES }).notNull().default("code"),
+    codeHash: text("code_hash"),
+    codeAttempts: integer("code_attempts").notNull().default(0),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("admin_sessions_account_idx").on(t.accountId)],
+);
+
+export const adminResetTokens = sqliteTable(
+  "admin_reset_tokens",
+  {
+    id: id(),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => adminAccounts.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    usedAt: integer("used_at", { mode: "timestamp_ms" }),
+    ipAddress: text("ip_address"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("admin_reset_tokens_account_idx").on(t.accountId)],
+);
+
+// Switches the admin can flip without a redeploy (for example pausing swaps).
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: updatedAt(),
+});

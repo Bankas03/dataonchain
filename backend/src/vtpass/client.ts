@@ -42,6 +42,14 @@ export async function getDataVariations(network: Network): Promise<Variation[]> 
   return list;
 }
 
+// The VTpass wallet balance in naira (what is left to buy airtime and data with).
+export async function getVtpassBalance(): Promise<number> {
+  const body = await vtGet<{ contents?: { balance?: unknown }; content?: { balance?: unknown } }>("/balance");
+  const value = Number(body.contents?.balance ?? body.content?.balance);
+  if (!Number.isFinite(value)) throw new Error(`VTpass balance not understood: ${JSON.stringify(body).slice(0, 120)}`);
+  return value;
+}
+
 // VTpass request ids start with the Lagos date and time (YYYYMMDDHHII).
 // Used when buying (Phase 9). Each purchase gets exactly one.
 export function makeRequestId(): string {

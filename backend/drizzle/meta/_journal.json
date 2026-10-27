@@ -36,6 +36,13 @@
       "when": 1792859044978,
       "tag": "0004_swaps",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1793115095842,
+      "tag": "0005_admin_dashboard",
+      "breakpoints": true
     }
   ]
 }

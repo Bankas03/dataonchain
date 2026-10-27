@@ -74,6 +74,10 @@ export const env = {
   BRIDGE_DAILY_USDC: optionalNumber("BRIDGE_DAILY_USDC") ?? 200,
   // The most Circle may take in fees for one bridge transfer (safety cap)
   BRIDGE_MAX_FEE_USDC: optionalNumber("BRIDGE_MAX_FEE_USDC") ?? 0.5,
+  // Admin dashboard: the only email that can log in, and the dashboard's address
+  // (used in password reset links). Both set on Render.
+  ADMIN_EMAIL: process.env.ADMIN_EMAIL?.trim().toLowerCase() || undefined,
+  ADMIN_URL: (process.env.ADMIN_URL ?? "http://localhost:3001").trim().replace(/\/$/, ""),
   // Background worker: on in production unless WORKER_ENABLED=false
   WORKER_ENABLED: (process.env.WORKER_ENABLED ?? (NODE_ENV === "production" ? "true" : "false")) === "true",
 };
