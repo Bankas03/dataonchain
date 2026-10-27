@@ -62,8 +62,8 @@ const MILESTONES = [
 
 const ROADMAP = [
   { title: "Company registration", text: "Registering dataonchain with the Corporate Affairs Commission (CAC) in Nigeria.", status: "In progress" },
-  { title: "Live airtime and data delivery", text: "Connecting a live VTU provider once registration is complete.", status: "Next" },
   { title: "Bridge and swaps on Arc mainnet", text: "Moving crosschain transfers and swaps from Arc Testnet to Arc mainnet.", status: "Next" },
+  { title: "Live airtime and data delivery", text: "Connecting a live VTU provider once registration is complete.", status: "Planned" },
   { title: "Full launch on Arc mainnet", text: "Real USDC payments for airtime and data, for everyone in Nigeria.", status: "Planned" },
   { title: "Easier ways to add and cash out USDC", text: "Simple on and off ramps between naira and USDC.", status: "Planned" },
   { title: "Paying providers directly on Arc", text: "Settling with VTU providers in USDC on Arc as they start to accept it.", status: "Planned" },
