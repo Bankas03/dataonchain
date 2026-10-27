@@ -9,6 +9,7 @@ const NAV = [
   { href: "#tools", label: "Built with" },
   { href: "#milestones", label: "Milestones" },
   { href: "#roadmap", label: "Roadmap" },
+  { href: "#faq", label: "FAQ" },
 ];
 
 const HOW = [
@@ -67,6 +68,81 @@ const ROADMAP = [
   { title: "Full launch on Arc mainnet", text: "Real USDC payments for airtime and data, for everyone in Nigeria.", status: "Planned" },
   { title: "Easier ways to add and cash out USDC", text: "Simple on and off ramps between naira and USDC.", status: "Planned" },
   { title: "Paying providers directly on Arc", text: "Settling with VTU providers in USDC on Arc as they start to accept it.", status: "Planned" },
+];
+
+const FAQ: { q: string; a: string }[] = [
+  {
+    q: "What is dataonchain?",
+    a: "A website where you buy airtime and mobile data for any Nigerian line and pay with USDC, a digital dollar, on the Arc blockchain. You can also send USDC to other blockchains and swap between USDC, EURC and cirBTC.",
+  },
+  {
+    q: "Can I use real money yet?",
+    a: "Not yet. dataonchain is in public testing on Arc Testnet, where USDC is free test money with no value, and airtime and data are delivered through our provider's test environment, so nothing reaches a real phone. Real payments and real delivery come with the full launch, after our company registration and a live provider are in place.",
+  },
+  {
+    q: "How do I get test USDC?",
+    a: "Log in and copy your wallet address from your dashboard. Then go to faucet.circle.com, choose Arc Testnet and USDC, paste your address and request it. It arrives in your wallet within a minute.",
+  },
+  {
+    q: "Do I need a crypto wallet, a seed phrase or any crypto knowledge?",
+    a: "No. When you confirm your email, a smart wallet on Arc is created for you through Circle's wallet service. There is no seed phrase to write down and nothing to install. You log in with your email and password like any other website.",
+  },
+  {
+    q: "Which networks and amounts can I buy?",
+    a: "MTN, Airtel, Glo and 9mobile. Airtime from ₦50 to ₦50,000 per purchase, and the data plans each network offers, shown with their naira price. You can top up your own number or anyone else's.",
+  },
+  {
+    q: "How is the USDC price worked out?",
+    a: "We convert the naira price with a live exchange rate and add a small service fee. You see the exact USDC amount, the rate and the fee before you pay, and that price is held for 10 minutes.",
+  },
+  {
+    q: "Do I pay a network (gas) fee?",
+    a: "No. Arc charges its network fee in USDC, and we pay it for you. You pay only the price shown.",
+  },
+  {
+    q: "How fast is delivery?",
+    a: "Usually a few seconds. Your payment settles on Arc in under a second and the order goes to the network straight away. The order page updates live as each step completes.",
+  },
+  {
+    q: "What happens if my airtime or data does not arrive?",
+    a: "If the network cannot deliver, your USDC is refunded to your wallet automatically, usually within a minute, and the order page shows the refund transaction. If a network takes long to answer, the order shows Checking while we confirm with them; it then ends either delivered or refunded.",
+  },
+  {
+    q: "I typed the wrong number. Can I get my money back?",
+    a: "If the number is valid, the airtime or data is delivered to it and cannot be reversed, so please check the number and the network before you pay. A number that is not valid simply fails, and you are refunded automatically.",
+  },
+  {
+    q: "What is Send to another network?",
+    a: "It moves USDC from your Arc wallet to your own wallet on Base, Arbitrum, Ethereum, Avalanche, OP, Polygon or Unichain, or to an approved provider, through Circle Gateway. You pay no gas on any network, only Circle's fee, which is shown before you confirm. A transfer can take up to about 20 minutes while the networks confirm it, and Move to Arc brings your USDC back.",
+  },
+  {
+    q: "Are there limits on sending?",
+    a: "Yes, while we are testing: 1 to 100 USDC per transfer and 200 USDC per day, one transfer at a time.",
+  },
+  {
+    q: "Can I send USDC to any wallet address?",
+    a: "Not yet. For safety, USDC can only go to your own wallets on the supported networks or to approved providers. Sending to any address you choose may come later.",
+  },
+  {
+    q: "How do swaps work?",
+    a: "On the Swap page, pick two of USDC, EURC and cirBTC and enter an amount. You see what you get, the fee (0.5%) and the minimum you are guaranteed. If the price moves below that minimum, the swap is cancelled and nothing is taken. On the test network some pairs, such as cirBTC, may have no price at times.",
+  },
+  {
+    q: "Is my money safe?",
+    a: "Every payment, refund and swap is a real transaction on Arc that you can open in the Arc explorer from your order page. Payments that fail are refunded automatically, and every crosschain transfer is recorded step by step and checked against Circle every day. During testing, only test money is involved.",
+  },
+  {
+    q: "I forgot my password. What do I do?",
+    a: "Click Forgot password? on the login page and enter your email. We send a link to choose a new password; it works once and expires after an hour. Your wallet and balance stay exactly as they were.",
+  },
+  {
+    q: "Why Arc?",
+    a: "Fees are paid in USDC, payments are final in under a second, and Arc comes from Circle, the issuer of USDC, with wallets, gas sponsorship, crosschain transfers and swaps built in. See the Why Arc section above for more.",
+  },
+  {
+    q: "Is dataonchain a registered company?",
+    a: "Our registration with the Corporate Affairs Commission (CAC) in Nigeria is in progress. Real payments start only after it is complete.",
+  },
 ];
 
 function SectionTitle({ id, kicker, title, text }: { id: string; kicker: string; title: string; text?: string }) {
@@ -259,6 +335,24 @@ export default function Home() {
               </li>
             ))}
           </ol>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="py-20">
+        <div className="mx-auto max-w-3xl px-4">
+          <SectionTitle id="faq" kicker="FAQ" title="Questions people ask" />
+          <div className="mt-10 divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
+            {FAQ.map((f) => (
+              <details key={f.q} className="group px-5">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 font-medium text-zinc-900 dark:text-zinc-50 [&::-webkit-details-marker]:hidden">
+                  {f.q}
+                  <span className="shrink-0 text-xl leading-none text-emerald-700 transition group-open:rotate-45 dark:text-emerald-400">+</span>
+                </summary>
+                <p className="pb-5 leading-relaxed text-zinc-600 dark:text-zinc-400">{f.a}</p>
+              </details>
+            ))}
+          </div>
         </div>
       </section>
 
