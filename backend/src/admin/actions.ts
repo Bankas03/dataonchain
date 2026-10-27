@@ -1,10 +1,10 @@
 // Things the admin can do from the dashboard. Each one is small, safe to
 // repeat, and written to the audit log with the admin as the actor.
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../db";
-import { approvedDestinations, orders, payments, refunds, sessions, users } from "../db/schema";
+import { approvedDestinations, orders, payments, refunds, sessions, users, vtuTransactions } from "../db/schema";
 import { reconcileOrder } from "../fulfilment/service";
-import { advanceRefund, startRefund } from "../refunds/service";
+import { advanceRefund, microText, startRefund } from "../refunds/service";
 import { setPause, type PauseKey } from "../settings";
 import { adminAudit } from "./auth";
 
@@ -74,6 +74,51 @@ export async function retryRefund(adminId: string, key: string) {
   const after = await statusOf(order.id);
   await adminAudit("admin.refund_retry", { reference: order.reference, before: order.status, after }, adminId, { type: "order", id: order.id });
   return { before: order.status, after };
+}
+
+// For an order stuck under review because VTpass never gave a clear answer:
+// ask VTpass one last time, and if it is still unclear, close the delivery as
+// failed and refund the customer. Only do this after checking the VTpass
+// dashboard shows the purchase did not go through, or the customer could get
+// both the airtime/data and the refund.
+export async function failAndRefund(adminId: string, key: string, reason: unknown) {
+  const note = typeof reason === "string" ? reason.trim().slice(0, 300) : "";
+  if (!note) throw new AdminActionError("Write what you checked (for example: not found on the VTpass dashboard).");
+  const order = await findOrder(key);
+  if (order.status !== "FLAGGED") throw new AdminActionError("Only orders under review (flagged) can be closed this way.", 409);
+  const [paid] = await db
+    .select({ id: payments.id })
+    .from(payments)
+    .where(and(eq(payments.orderId, order.id), eq(payments.status, "CONFIRMED")))
+    .limit(1);
+  if (!paid) throw new AdminActionError("This order has no confirmed payment, so there is nothing to refund. Check the payment on the explorer.", 409);
+  const [refund] = await db.select({ id: refunds.id }).from(refunds).where(eq(refunds.orderId, order.id)).limit(1);
+  if (refund) throw new AdminActionError("This order already has a refund. Use the refund button instead.", 409);
+
+  // One last answer from VTpass first
+  await reconcileOrder(order.id, true);
+  const now = await statusOf(order.id);
+  if (now !== "FLAGGED") {
+    await adminAudit("admin.order_recheck", { reference: order.reference, before: order.status, after: now }, adminId, { type: "order", id: order.id });
+    return { before: order.status, after: now };
+  }
+
+  await db
+    .update(vtuTransactions)
+    .set({ status: "FAILED" })
+    .where(and(eq(vtuTransactions.orderId, order.id), inArray(vtuTransactions.status, ["SENT", "PENDING", "UNKNOWN"])));
+  const [failed] = await db
+    .update(orders)
+    .set({
+      status: "FAILED",
+      failureReason: `The network could not confirm this delivery. Your ${microText(order.usdcAmountMicro)} USDC is being refunded to your wallet.`,
+    })
+    .where(and(eq(orders.id, order.id), eq(orders.status, "FLAGGED")))
+    .returning();
+  if (!failed) throw new AdminActionError("The order changed in the meantime. Reload and try again.", 409);
+  await adminAudit("admin.order_failed_refunded", { reference: order.reference, reason: note }, adminId, { type: "order", id: order.id });
+  await startRefund(order.id);
+  return { before: order.status, after: await statusOf(order.id) };
 }
 
 // Suspended users cannot log in to anything new (orders, bridge, swaps).

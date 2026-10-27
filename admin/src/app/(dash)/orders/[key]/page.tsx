@@ -31,22 +31,23 @@ type Detail = {
   refund: { status: string; amount: string; toAddress: string; attempt: number; txUrl: string | null; lastError: string | null; confirmedAt: string | null; createdAt: string } | null;
   ledger: { account: string; currency: string; debit: string; credit: string; memo: string | null; createdAt: string }[];
   activity: { id: string; actorType: string; action: string; details: unknown; at: string }[];
-  actions: { requery: boolean; retryRefund: boolean };
+  actions: { requery: boolean; retryRefund: boolean; failAndRefund: boolean };
 };
 
 export default function OrderPage() {
   const { key } = useParams<{ key: string }>();
   const { data, error, reload } = useLoad<Detail>(key ? `/orders/${key}` : null);
   const [message, setMessage] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
+  const [checked, setChecked] = useState("");
 
   if (error && !data) return <Notice>{error}</Notice>;
   if (!data) return <Loading />;
   const { order } = data;
 
-  async function act(path: string, what: string) {
+  async function act(path: string, what: string, data: unknown = {}) {
     setMessage(null);
     try {
-      const r = await post<{ before: string; after: string }>(path);
+      const r = await post<{ before: string; after: string }>(path, data);
       setMessage({ tone: "good", text: `${what}: ${label(r.before)} → ${label(r.after)}` });
       reload();
     } catch (err) {
@@ -62,7 +63,7 @@ export default function OrderPage() {
         right={<Badge status={order.status} />}
       />
 
-      {data.actions.requery || data.actions.retryRefund || message ? (
+      {data.actions.requery || data.actions.retryRefund || data.actions.failAndRefund || message ? (
         <Card title="Actions" className="mb-6">
           <div className="flex flex-wrap items-center gap-3">
             {data.actions.requery ? (
@@ -76,6 +77,29 @@ export default function OrderPage() {
               </ConfirmButton>
             ) : null}
           </div>
+          {data.actions.failAndRefund ? (
+            <div className="mt-4 space-y-2 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+              <p className="text-sm text-zinc-700 dark:text-zinc-300">
+                VTpass never gave a clear answer for this order. First check the VTpass dashboard for request id{" "}
+                <span className="font-mono text-xs">{data.deliveries[0]?.requestId ?? "?"}</span>. Only if it did not go through:
+              </p>
+              <input
+                value={checked}
+                onChange={(e) => setChecked(e.target.value)}
+                placeholder="What you checked (kept in the history)"
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+              />
+              <ConfirmButton
+                danger
+                disabled={!checked.trim()}
+                confirmText="Yes, fail and refund"
+                onConfirm={() => act(`/orders/${order.reference}/fail-refund`, "Closed and refunded", { reason: checked })}
+              >
+                Mark failed and refund
+              </ConfirmButton>
+              <p className="text-xs text-zinc-500">VTpass is asked one last time first. If it answers, the order follows that answer instead.</p>
+            </div>
+          ) : null}
           <p className="mt-3 text-xs text-zinc-500">
             The background worker does these automatically; use them to check now. A delivery is never sent twice, and a refund can never be paid twice.
           </p>

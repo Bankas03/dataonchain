@@ -12,7 +12,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 import { env } from "../env";
 import { isPauseKey } from "../settings";
-import { AdminActionError, recheckOrder, retryRefund, setPauseSwitch, setProviderActive, setUserStatus } from "./actions";
+import { AdminActionError, failAndRefund, recheckOrder, retryRefund, setPauseSwitch, setProviderActive, setUserStatus } from "./actions";
 import {
   AdminAuthError,
   CODE_MINUTES,
@@ -266,6 +266,15 @@ adminApp.post("/orders/:key/recheck", requireAdmin, async (c) => {
 adminApp.post("/orders/:key/refund", requireAdmin, async (c) => {
   try {
     return c.json(await retryRefund(c.get("admin").account.id, c.req.param("key")));
+  } catch (err) {
+    return fail(c, err);
+  }
+});
+
+adminApp.post("/orders/:key/fail-refund", requireAdmin, async (c) => {
+  const b = await body(c);
+  try {
+    return c.json(await failAndRefund(c.get("admin").account.id, c.req.param("key"), b.reason));
   } catch (err) {
     return fail(c, err);
   }

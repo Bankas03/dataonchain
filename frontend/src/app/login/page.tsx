@@ -59,6 +59,11 @@ export default function LoginPage() {
       <form onSubmit={onSubmit} className="space-y-4">
         <Field label="Email" name="email" type="email" autoComplete="email" required />
         <Field label="Password" name="password" type="password" autoComplete="current-password" required />
+        <p className="-mt-2 text-right text-sm">
+          <Link href="/forgot-password" className="font-medium text-emerald-700 hover:underline dark:text-emerald-400">
+            Forgot password?
+          </Link>
+        </p>
         {notice ? (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">{notice}</p>
         ) : null}

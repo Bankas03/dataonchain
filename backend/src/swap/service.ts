@@ -4,8 +4,8 @@
 //
 // Safety:
 //   - one swap at a time per user (unique open_key), so a double click cannot swap twice
-//   - the user never gets less than the quote minus the slippage (1% by default):
-//     otherwise the swap reverts and nothing changes
+//   - the user never gets less than the minimum shown on their quote (the quote
+//     minus 1% slippage by default): otherwise the swap reverts and nothing changes
 //   - limits per swap and swaps per day; SWAP_ENABLED switches it all off
 //   - the dataonchain fee (0.5%) is taken by App Kit and sent to the treasury
 //     (Arc keeps 10% of that fee); the swap provider charges 0.02%
@@ -70,12 +70,22 @@ export async function tokenBalances(circleWalletId: string): Promise<Record<Swap
   return { USDC: find("USDC"), EURC: find("EURC"), cirBTC: find("CIRBTC") };
 }
 
-type Params = { tokenIn?: unknown; tokenOut?: unknown; amount?: unknown };
+type Params = { tokenIn?: unknown; tokenOut?: unknown; amount?: unknown; minOut?: unknown };
 
 function readParams(body: Params) {
   if (!isToken(body.tokenIn) || !isToken(body.tokenOut)) throw new SwapError("Choose two of USDC, EURC and cirBTC.");
   if (body.tokenIn === body.tokenOut) throw new SwapError("Choose two different tokens.");
   return { tokenIn: body.tokenIn, tokenOut: body.tokenOut, amountIn: parseAmount(body.tokenIn, body.amount) };
+}
+
+// A decimal amount cut down to the token's decimals (never rounded up). null if not a number.
+function trimAmount(token: SwapToken, value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  const m = /^(\d+)(?:\.(\d+))?$/.exec(String(value).trim());
+  if (!m) return null;
+  const frac = (m[2] ?? "").slice(0, TOKENS[token].decimals).replace(/0+$/, "");
+  const text = frac ? `${m[1]}.${frac}` : m[1]!;
+  return Number(text) > 0 ? text : null;
 }
 
 function swapParams(address: string, tokenIn: SwapToken, tokenOut: SwapToken, amountIn: string) {
@@ -177,16 +187,34 @@ export async function executeSwap(userId: string, body: Params) {
     .returning();
   if (!row) throw new SwapError("You already have a swap in progress. Please wait for it to finish.", 409);
 
-  const params = swapParams(wallet.address, tokenIn, tokenOut, amountIn);
+  // The minimum the user was shown on the quote ("at least Y"). The swap must
+  // never give less: it is sent with that minimum as its stop limit, so it
+  // reverts (nothing taken) rather than fill below it.
+  const shownMin = trimAmount(tokenOut, body.minOut);
+  const base = swapParams(wallet.address, tokenIn, tokenOut, amountIn);
+  let stopLimit: string | null = shownMin;
   try {
-    const estimate = (await appKit().kit.estimateSwap(params as never)) as { estimatedOutput?: unknown; stopLimit?: unknown };
-    await db.update(swaps).set({ estimatedOut: amountOf(estimate.estimatedOutput), minOut: amountOf(estimate.stopLimit) }).where(eq(swaps.id, row.id));
+    const estimate = (await appKit().kit.estimateSwap(base as never)) as { estimatedOutput?: unknown; stopLimit?: unknown };
+    const freshOut = amountOf(estimate.estimatedOutput);
+    const freshMin = trimAmount(tokenOut, amountOf(estimate.stopLimit));
+    if (shownMin && freshOut !== null && Number(freshOut) < Number(shownMin)) {
+      await db
+        .update(swaps)
+        .set({ status: "FAILED", estimatedOut: freshOut, minOut: shownMin, error: `price moved: now ${freshOut}, quoted minimum ${shownMin}`, openKey: null })
+        .where(eq(swaps.id, row.id));
+      throw new SwapError("The price moved since your quote, below the minimum you were shown. Nothing was taken. Please get a new price.", 409);
+    }
+    // If the price got better, keep the tighter of the two minimums
+    if (freshMin && (!stopLimit || Number(freshMin) > Number(stopLimit))) stopLimit = freshMin;
+    await db.update(swaps).set({ estimatedOut: freshOut, minOut: stopLimit }).where(eq(swaps.id, row.id));
   } catch (err) {
+    if (err instanceof SwapError) throw err;
     const message = errorText(err);
     await db.update(swaps).set({ status: "FAILED", error: message, openKey: null }).where(eq(swaps.id, row.id));
     console.error(`[swap] ${row.id} no quote:`, message);
     throw new SwapError("No price is available for this swap right now. Nothing was taken. Please try again shortly.", 502);
   }
+  const params = stopLimit ? { ...base, config: { ...base.config, stopLimit } } : base;
 
   try {
     const result = (await appKit().kit.swap(params as never)) as {

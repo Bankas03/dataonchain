@@ -550,6 +550,7 @@ export async function getOrder(key: string) {
         (order.status === "FAILED" && confirmedPayment) ||
         order.status === "REFUND_PENDING" ||
         (order.status === "FLAGGED" && refund?.status === "FAILED"),
+      failAndRefund: order.status === "FLAGGED" && confirmedPayment && !refund,
     },
   };
 }

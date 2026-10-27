@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { normalizeNigerianPhone } from "../auth/phone";
 import { getActivePlan, isNetwork } from "../catalog/plans";
 import { db } from "../db";
+import { isUniqueViolation } from "../db/errors";
 import { dataPlans, orders } from "../db/schema";
 import { env } from "../env";
 import { getCurrentRate } from "./rates";
@@ -106,7 +107,7 @@ export async function createQuote(userId: string, body: unknown) {
         marginPercent: env.PRICING_MARGIN_BPS / 100,
       };
     } catch (err) {
-      if (err instanceof Error && /UNIQUE/i.test(err.message) && attempt < 4) continue;
+      if (isUniqueViolation(err, "reference") && attempt < 4) continue;
       throw err;
     }
   }

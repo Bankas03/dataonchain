@@ -7,7 +7,7 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { db } from "../db";
 import { accounts, sessions, users, verifications } from "../db/schema";
 import { sendEmail } from "../email";
-import { verificationEmail } from "../email/templates";
+import { resetPasswordEmail, verificationEmail } from "../email/templates";
 import { env } from "../env";
 import { normalizeNigerianPhone } from "./phone";
 
@@ -30,6 +30,17 @@ export const auth = betterAuth({
     // No login until the email is confirmed.
     requireEmailVerification: true,
     autoSignIn: false,
+    // Forgot password: a link by email, valid one hour, used once.
+    // Setting a new password signs the user out everywhere.
+    resetPasswordTokenExpiresIn: 60 * 60,
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, url }) => {
+      const message = resetPasswordEmail(user.name, url);
+      // Not awaited on purpose: the response time must not reveal anything.
+      void sendEmail({ to: user.email, ...message }).catch((err) => {
+        console.error("[email] password reset email failed:", err);
+      });
+    },
   },
 
   emailVerification: {

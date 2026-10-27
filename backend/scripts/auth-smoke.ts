@@ -122,6 +122,37 @@ async function main() {
 
   const wrong = await call("/api/auth/sign-in/email", "POST", { email, password: "wrong-password" });
   check(wrong.status === 401 || wrong.status === 400, "wrong password is refused", wrong.body);
+
+  // Forgot password
+  const loggedIn = cookieOf(login);
+  const ask = await call("/api/auth/request-password-reset", "POST", { email, redirectTo: "/reset-password" });
+  check(ask.status === 200, "forgot password answers", ask.body);
+  const nobody = await call("/api/auth/request-password-reset", "POST", { email: `nobody-${email}`, redirectTo: "/reset-password" });
+  check(nobody.status === 200, "forgot password answers the same for an unknown email", nobody.body);
+  let resetMail: { subject: string; text: string } | null = null;
+  for (let i = 0; i < 20 && !resetMail; i++) {
+    const m = await latestEmailTo(email);
+    if (m && /reset/i.test(m.subject)) resetMail = m;
+    else await new Promise((r) => setTimeout(r, 250));
+  }
+  check(resetMail !== null, "a password reset email was sent");
+  const resetLink = resetMail!.text.match(/https?:\/\/\S+/)?.[0];
+  check(Boolean(resetLink && resetLink.includes("reset-password")), "the email contains a reset link", resetMail);
+  const resetUrl = new URL(resetLink!);
+  const opened = await call(base + resetUrl.pathname + resetUrl.search, "GET");
+  const token = /[?&]token=([^&]+)/.exec(opened.location ?? "")?.[1];
+  check(opened.status >= 300 && opened.status < 400 && Boolean(token), "the reset link opens the reset page with a token", opened.location);
+  const newPassword = "N3w-smoke-password";
+  const reset = await call("/api/auth/reset-password", "POST", { newPassword, token });
+  check(reset.status === 200, "a new password can be set", reset.body);
+  const reuse = await call("/api/auth/reset-password", "POST", { newPassword: "Another-pass-123", token });
+  check(reuse.status >= 400, "the same reset link cannot be used twice", reuse.body);
+  const oldPass = await call("/api/auth/sign-in/email", "POST", { email, password });
+  check(oldPass.status === 401 || oldPass.status === 400, "the old password no longer works", oldPass.body);
+  const newPass = await call("/api/auth/sign-in/email", "POST", { email, password: newPassword });
+  check(newPass.status === 200, "the new password works", newPass.body);
+  const stale = await call("/api/auth/get-session", "GET", undefined, loggedIn);
+  check(!(stale.body as { user?: unknown } | null)?.user, "sessions from before the reset were signed out", stale.body);
 }
 
 main()

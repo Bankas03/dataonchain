@@ -18,6 +18,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { circle } from "../circle/client";
 import { db } from "../db";
+import { isUniqueViolation } from "../db/errors";
 import { approvedDestinations, auditLogs, bridgeEvents, bridgeTransfers, ledgerEntries } from "../db/schema";
 import { env } from "../env";
 import { uuidFrom } from "../wallets/service";
@@ -34,6 +35,9 @@ import {
 } from "./gateway";
 
 export class BridgeError extends Error {}
+// A Circle transaction that ended FAILED, DENIED or CANCELLED. Retrying with the
+// same idempotency key only returns the same failed transaction, so it is final.
+export class ContractCallFailed extends BridgeError {}
 
 type Transfer = typeof bridgeTransfers.$inferSelect;
 type Status = Transfer["status"];
@@ -61,9 +65,11 @@ async function event(transferId: string, step: string, fields: { chain?: string;
 }
 
 async function move(t: Transfer, from: Status[], to: Status, extra: Partial<typeof bridgeTransfers.$inferInsert> = {}) {
+  // A finished transfer frees the user's "one transfer at a time" slot
+  const done = to === "COMPLETE" || to === "FAILED" ? { openKey: null } : {};
   const [row] = await db
     .update(bridgeTransfers)
-    .set({ status: to, ...extra })
+    .set({ status: to, ...extra, ...done })
     .where(and(eq(bridgeTransfers.id, t.id), inArray(bridgeTransfers.status, from)))
     .returning();
   return row;
@@ -106,7 +112,7 @@ async function contractCall(p: {
     const tx = t.data?.transaction as unknown as { state?: string; txHash?: string; errorReason?: string } | undefined;
     if (tx?.state === "COMPLETE") return { id, txHash: tx.txHash };
     if (tx?.state && FAILED_STATES.includes(tx.state)) {
-      throw new BridgeError(`${p.signature} ${tx.state}${tx.errorReason ? `: ${tx.errorReason}` : ""}`);
+      throw new ContractCallFailed(`${p.signature} ${tx.state}${tx.errorReason ? `: ${tx.errorReason}` : ""}`);
     }
     await new Promise((r) => setTimeout(r, 3_000));
   }
@@ -160,10 +166,14 @@ export async function createTransfer(p: {
     throw new BridgeError(`Circle's fee (${(est.maxFeeMicro / 1e6).toFixed(6)} USDC) is above the safety cap of ${(feeCapMicro(destination) / 1e6).toFixed(2)} USDC for ${destination.label}.`);
   }
 
-  const [row] = await db
+  let row: Transfer | undefined;
+  try {
+    [row] = await db
     .insert(bridgeTransfers)
     .values({
       userId: p.userId ?? null,
+      // One open transfer per user, enforced by the database (a double click cannot start two)
+      openKey: p.userId ?? null,
       direction: p.direction,
       sourceChain: source.key,
       destinationChain: destination.key,
@@ -180,6 +190,12 @@ export async function createTransfer(p: {
       status: "QUOTED",
     })
     .returning();
+  } catch (err) {
+    if (isUniqueViolation(err, "open_key")) {
+      throw new BridgeError("You already have a transfer in progress. Please wait for it to finish.");
+    }
+    throw err;
+  }
   if (!row) throw new Error("Could not save the bridge transfer");
   await event(row.id, "quoted", { details: { maxFeeMicro: est.maxFeeMicro, forwardingFeeMicro: est.forwardingFeeMicro } });
   return row;
@@ -248,6 +264,8 @@ async function stepDeposit(t: Transfer) {
     await event(t.id, "deposit_planned", { chain: source.key, details: { value: String(needed(t) - have), gatewayBalanceMicro: have } });
   }
 
+  // From here on the transfer is DEPOSITING (it may have just moved there above)
+  const current: Transfer = { ...t, status: "DEPOSITING" };
   const [plan] = await db
     .select()
     .from(bridgeEvents)
@@ -256,10 +274,23 @@ async function stepDeposit(t: Transfer) {
     .limit(1);
   const value = (plan?.details as { value?: string } | null)?.value;
   if (!value) {
-    await fail(t, "deposit plan missing");
+    await fail(current, "deposit plan missing");
     return;
   }
   const round = plan?.id ?? "first"; // a re-quote makes a new plan, so new idempotency keys
+  try {
+    await depositCalls(t, source, value, round);
+  } catch (err) {
+    if (err instanceof ContractCallFailed) {
+      // Final: the same call would only fail again. The USDC did not leave the wallet.
+      await fail(current, `the deposit into Circle Gateway did not go through (${err.message}). Your USDC is still in your wallet.`);
+      return;
+    }
+    throw err; // slow or unreachable: tried again later
+  }
+}
+
+async function depositCalls(t: Transfer, source: BridgeChain, value: string, round: string) {
   const approve = await contractCall({
     walletId: t.depositorWalletId,
     contract: source.usdc,

@@ -6,10 +6,11 @@
 // Every status change is conditional ("only if it is still X"), so two
 // requests at the same time can never pay twice or confirm twice.
 import { createHash, randomUUID } from "node:crypto";
-import { and, desc, eq, inArray, notInArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, notInArray } from "drizzle-orm";
 import { circle } from "../circle/client";
 import { db } from "../db";
-import { auditLogs, dataPlans, ledgerEntries, orders, payments } from "../db/schema";
+import { isUniqueViolation } from "../db/errors";
+import { auditLogs, dataPlans, ledgerEntries, orders, payments, wallets } from "../db/schema";
 import { env } from "../env";
 import { fulfilOrder, getDeliveryView, reconcileOrder } from "../fulfilment/service";
 import { microToUsdc } from "../pricing/quote";
@@ -179,9 +180,20 @@ export async function payOrder(userId: string, reference: string) {
   }
 
   if (!transactionId) {
+    // Circle may have taken the transfer even though its answer was lost: look for it
+    try {
+      transactionId = (await findCircleTransfer(order, { ...payment, walletId: wallet.id })) ?? undefined;
+    } catch (err) {
+      console.error(`[pay] ${order.reference} lookup failed:`, err instanceof Error ? err.message : err);
+    }
+  }
+  if (!transactionId) {
     await db.update(payments).set({ status: "FAILED" }).where(eq(payments.id, payment.id));
     await db.update(orders).set({ status: "QUOTED" }).where(and(eq(orders.id, order.id), eq(orders.status, "PAYMENT_PENDING")));
-    throw new PaymentError("We could not start the payment. No money was taken. Please try again.", 409);
+    throw new PaymentError(
+      "We could not start the payment. Please try again. If any USDC did leave your wallet, it is matched to this order automatically within a few minutes.",
+      409,
+    );
   }
 
   await db
@@ -189,6 +201,98 @@ export async function payOrder(userId: string, reference: string) {
     .set({ circleTransactionId: transactionId, status: "PENDING" })
     .where(eq(payments.id, payment.id));
   return getOrderView(userId, reference);
+}
+
+// Looks on Circle for the transfer of this order (by its reference), in case
+// Circle took it but its answer never reached us. Returns the Circle id or null.
+async function findCircleTransfer(order: Order, payment: Pick<Payment, "walletId" | "createdAt">): Promise<string | null> {
+  if (!payment.walletId) return null;
+  const [w] = await db.select({ circleWalletId: wallets.circleWalletId }).from(wallets).where(eq(wallets.id, payment.walletId)).limit(1);
+  if (!w) return null;
+  const res = await circle.listTransactions({
+    walletIds: [w.circleWalletId],
+    from: new Date(payment.createdAt.getTime() - 5 * 60_000).toISOString(),
+    pageSize: 50,
+  } as unknown as Parameters<typeof circle.listTransactions>[0]);
+  const list = (res.data?.transactions ?? []) as unknown as { id?: string; refId?: string }[];
+  return list.find((t) => t.refId === order.reference)?.id ?? null;
+}
+
+// Worker step (every few minutes): payments whose start was interrupted (server
+// restart, or Circle's answer was lost). If Circle has the transfer, it is linked
+// and the order continues as normal (delivered, or refunded). If Circle never got
+// it, an interrupted payment is closed so the customer can simply pay again.
+const RECOVER_AFTER_MS = 2 * 60_000;
+const RECOVER_WINDOW_MS = 24 * 60 * 60_000;
+
+export async function recoverInterruptedPayments(): Promise<number> {
+  const now = Date.now();
+  const rows = await db
+    .select({ payment: payments, order: orders })
+    .from(payments)
+    .innerJoin(orders, eq(payments.orderId, orders.id))
+    .where(
+      and(
+        isNull(payments.circleTransactionId),
+        inArray(payments.status, ["INITIATED", "FAILED"]),
+        lt(payments.createdAt, new Date(now - RECOVER_AFTER_MS)),
+        gte(payments.createdAt, new Date(now - RECOVER_WINDOW_MS)),
+        inArray(orders.status, ["QUOTED", "EXPIRED", "PAYMENT_PENDING"]),
+      ),
+    )
+    .orderBy(desc(payments.createdAt))
+    .limit(20);
+  let linked = 0;
+  for (const { payment, order } of rows) {
+    // Another payment of this order already holds the Circle transfer: nothing to recover
+    const [other] = await db
+      .select({ id: payments.id })
+      .from(payments)
+      .where(and(eq(payments.orderId, order.id), isNotNull(payments.circleTransactionId)))
+      .limit(1);
+    if (other) {
+      if (payment.status === "INITIATED") {
+        await db.update(payments).set({ status: "FAILED" }).where(and(eq(payments.id, payment.id), eq(payments.status, "INITIATED")));
+      }
+      continue;
+    }
+    let circleId: string | null;
+    try {
+      circleId = await findCircleTransfer(order, payment);
+    } catch (err) {
+      console.error(`[pay] recovery lookup for ${order.reference} failed:`, err instanceof Error ? err.message : err);
+      continue;
+    }
+    if (circleId) {
+      let done: Payment | undefined;
+      try {
+        [done] = await db
+          .update(payments)
+          .set({ circleTransactionId: circleId, status: "PENDING" })
+          .where(and(eq(payments.id, payment.id), isNull(payments.circleTransactionId)))
+          .returning();
+      } catch (err) {
+        if (isUniqueViolation(err)) continue; // linked elsewhere already
+        throw err;
+      }
+      if (!done) continue;
+      await db
+        .update(orders)
+        .set({ status: "PAYMENT_PENDING", failureReason: null })
+        .where(and(eq(orders.id, order.id), inArray(orders.status, ["QUOTED", "EXPIRED", "PAYMENT_PENDING"])));
+      await audit("payment.recovered", order.id, { paymentId: payment.id, circleTransactionId: circleId });
+      console.log(`[pay] ${order.reference}: found its transfer on Circle (${circleId}), continuing`);
+      linked++;
+    } else if (payment.status === "INITIATED") {
+      // Circle never received it: nothing left the wallet. Let the customer pay again.
+      await db.update(payments).set({ status: "FAILED" }).where(and(eq(payments.id, payment.id), eq(payments.status, "INITIATED")));
+      await db
+        .update(orders)
+        .set({ status: order.quoteExpiresAt.getTime() < now ? "EXPIRED" : "QUOTED" })
+        .where(and(eq(orders.id, order.id), eq(orders.status, "PAYMENT_PENDING")));
+    }
+  }
+  return linked;
 }
 
 // Checks a pending payment with Circle and moves the order forward.
@@ -235,7 +339,7 @@ export async function refreshPayment(order: Order): Promise<void> {
       .where(and(eq(payments.id, payment.id), eq(payments.status, "PENDING")))
       .returning();
   } catch (err) {
-    if (err instanceof Error && /UNIQUE/i.test(err.message)) {
+    if (isUniqueViolation(err)) {
       await flag(order, payment, "transaction hash was already used by another payment", tx);
       return;
     }

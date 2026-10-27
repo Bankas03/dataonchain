@@ -1,10 +1,11 @@
-// Data plans, copied from VTpass into our database and refreshed every 6 hours.
+// Data plans, copied from VTpass into our database and refreshed every hour,
+// so prices stay close to what VTpass charges at delivery.
 import { and, asc, eq, lt, max } from "drizzle-orm";
 import { db } from "../db";
 import { NETWORKS, dataPlans } from "../db/schema";
 import { getDataVariations, type Network } from "../vtpass/client";
 
-const REFRESH_AFTER_MS = 6 * 60 * 60 * 1000;
+const REFRESH_AFTER_MS = 60 * 60 * 1000;
 const syncing = new Map<Network, Promise<void>>();
 
 export type DataPlan = typeof dataPlans.$inferSelect;

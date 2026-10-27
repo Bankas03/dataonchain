@@ -43,6 +43,13 @@
       "when": 1793115095842,
       "tag": "0005_admin_dashboard",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793118627306,
+      "tag": "0006_bridge_open_key",
+      "breakpoints": true
     }
   ]
 }

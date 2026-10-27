@@ -498,6 +498,8 @@ export const bridgeTransfers = sqliteTable(
     signature: text("signature"),
     gatewayTransferId: text("gateway_transfer_id").unique(),
     mintTxHash: text("mint_tx_hash"),
+    // Holds the user id while the transfer is open: one open transfer per user
+    openKey: text("open_key"),
     status: text("status", { enum: BRIDGE_STATUSES }).notNull().default("QUOTED"),
     failureReason: text("failure_reason"),
     createdAt: createdAt(),
@@ -506,6 +508,7 @@ export const bridgeTransfers = sqliteTable(
   (t) => [
     index("bridge_transfers_status_idx").on(t.status),
     index("bridge_transfers_user_idx").on(t.userId),
+    uniqueIndex("bridge_transfers_open_key_idx").on(t.openKey),
   ],
 );
 

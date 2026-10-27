@@ -5,22 +5,25 @@
 //   FLAGGED            -> keep asking VTpass (every 5 minutes) if the delivery was unclear
 //   FAILED (paid)      -> start the refund
 //   REFUND_PENDING     -> send and confirm the refund
-// and upgrades users to smart contract wallets, moving USDC from old wallets.
+// and upgrades users to smart contract wallets, moving USDC from old wallets,
+// recovers interrupted payments, and keeps bridge transfers moving,
 // so nothing stays stuck when a customer closes their browser.
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "./db";
 import { orders, payments, vtuTransactions } from "./db/schema";
 import { fulfilOrder, reconcileOrder } from "./fulfilment/service";
-import { refreshPayment } from "./payments/service";
+import { recoverInterruptedPayments, refreshPayment } from "./payments/service";
 import { advanceRefund, startRefund } from "./refunds/service";
 import { runWalletUpgrades } from "./wallets/sweep";
 import { bridgeTransfers } from "./db/schema";
-import { advanceTransfer } from "./bridge/service";
-import { driving } from "./bridge/user";
+import { driveTransfer } from "./bridge/user";
 import { alertStuck, dailyReconcile } from "./bridge/monitor";
 import { releaseAbandonedSwaps } from "./swap/service";
 
 const EVERY_MS = 30_000;
+// Interrupted payments are looked up on Circle every 5 minutes
+const RECOVER_EVERY_MS = 5 * 60_000;
+let lastRecovery = 0;
 
 export async function runWorkerOnce(): Promise<number> {
   const active = await db
@@ -55,6 +58,15 @@ export async function runWorkerOnce(): Promise<number> {
       console.error(`[worker] ${order.reference} failed:`, err instanceof Error ? err.message : err);
     }
   }
+  // Payments whose start was interrupted (restart, or Circle's answer was lost)
+  if (Date.now() - lastRecovery > RECOVER_EVERY_MS) {
+    lastRecovery = Date.now();
+    try {
+      await recoverInterruptedPayments();
+    } catch (err) {
+      console.error("[worker] payment recovery failed:", err instanceof Error ? err.message : err);
+    }
+  }
   // Bridge transfers left behind (for example after a restart)
   try {
     const open = await db
@@ -62,15 +74,9 @@ export async function runWorkerOnce(): Promise<number> {
       .from(bridgeTransfers)
       .where(inArray(bridgeTransfers.status, ["QUOTED", "DEPOSITING", "DEPOSITED", "FINALIZED", "INTENT_SIGNED", "SUBMITTED", "MINTED", "EXPIRED"]))
       .limit(20);
-    for (const { id } of open) {
-      if (driving.has(id)) continue;
-      driving.add(id);
-      try {
-        await advanceTransfer(id);
-      } finally {
-        driving.delete(id);
-      }
-    }
+    // Each one moves in the background, so a slow deposit (several minutes on
+    // some testnets) never holds up payments, deliveries and refunds here.
+    for (const { id } of open) driveTransfer(id);
   } catch (err) {
     console.error("[worker] bridge transfers failed:", err instanceof Error ? err.message : err);
   }

@@ -108,7 +108,7 @@ export default function SwapPage() {
     setBusy(true);
     setError(null);
     try {
-      const r = await api<{ swap: SwapView }>("/swap", { method: "POST", body: JSON.stringify({ tokenIn, tokenOut, amount }) });
+      const r = await api<{ swap: SwapView }>("/swap", { method: "POST", body: JSON.stringify({ tokenIn, tokenOut, amount, minOut: quote?.minOut ?? null }) });
       setDone(r.swap);
       setQuote(null);
       setAmount("");

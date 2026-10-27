@@ -18,6 +18,18 @@ function optionalNumber(name: string): number | undefined {
   return value;
 }
 
+// A whole number between min and max (default when not set). A typo stops the
+// server at startup with a clear message instead of breaking things later.
+function wholeNumber(name: string, fallback: number, min: number, max: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new Error(`${name} must be a whole number from ${min} to ${max} (it is "${raw}")`);
+  }
+  return value;
+}
+
 const NODE_ENV = process.env.NODE_ENV ?? "development";
 
 export const env = {
@@ -63,9 +75,9 @@ export const env = {
       : "https://gateway-api.circle.com")).replace(/\/$/, ""),
   // Swaps on Arc (Circle App Kit). Off until switched on.
   SWAP_ENABLED: (process.env.SWAP_ENABLED ?? "false") === "true",
-  SWAP_FEE_BPS: Number(process.env.SWAP_FEE_BPS ?? 50), // 0.5%, paid to the treasury
-  SWAP_SLIPPAGE_BPS: Number(process.env.SWAP_SLIPPAGE_BPS ?? 100), // 1%
-  SWAP_DAILY_COUNT: Number(process.env.SWAP_DAILY_COUNT ?? 20),
+  SWAP_FEE_BPS: wholeNumber("SWAP_FEE_BPS", 50, 0, 1000), // 0.5%, paid to the treasury
+  SWAP_SLIPPAGE_BPS: wholeNumber("SWAP_SLIPPAGE_BPS", 100, 1, 1000), // 1%
+  SWAP_DAILY_COUNT: wholeNumber("SWAP_DAILY_COUNT", 20, 1, 1000),
   // Where bridge alerts and the daily bridge report are emailed (optional)
   ALERT_EMAIL: process.env.ALERT_EMAIL?.trim() || undefined,
   // Limits for users bridging out (USDC)
