@@ -37,7 +37,12 @@ export function RecentOrders() {
 
   return (
     <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-      <h2 className="text-sm font-medium text-zinc-500">Recent orders</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium text-zinc-500">Recent orders</h2>
+        <Link href="/history" className="text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400">
+          See all and download
+        </Link>
+      </div>
       {orders === null ? <p className="mt-4 text-sm text-zinc-500">Loading...</p> : null}
       {orders && orders.length === 0 ? <p className="mt-4 text-sm text-zinc-500">No orders yet.</p> : null}
       {orders && orders.length > 0 ? (

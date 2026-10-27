@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
@@ -100,6 +101,13 @@ export function WalletCard() {
               {loading ? "Refreshing..." : "Refresh balance"}
             </button>
           </div>
+
+          <Link
+            href="/add-usdc"
+            className="block w-full rounded-lg bg-emerald-700 px-4 py-2.5 text-center font-medium text-white hover:bg-emerald-800"
+          >
+            Add USDC (address and QR code)
+          </Link>
 
           <div>
             <p className="text-sm text-zinc-500">Wallet address (to receive USDC on {data.wallet.network} only)</p>

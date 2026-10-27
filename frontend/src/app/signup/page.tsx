@@ -112,6 +112,12 @@ export default function SignupPage() {
         <Field label="Password" name="password" type="password" autoComplete="new-password" minLength={8} hint="At least 8 characters" required />
         <Field label="Confirm password" name="confirm" type="password" autoComplete="new-password" minLength={8} required />
         <FormError message={error} />
+        <p className="text-xs leading-relaxed text-zinc-500">
+          By creating an account you agree to our{" "}
+          <Link href="/terms" target="_blank" className="underline hover:text-zinc-800 dark:hover:text-zinc-200">Terms of Service</Link> and{" "}
+          <Link href="/privacy" target="_blank" className="underline hover:text-zinc-800 dark:hover:text-zinc-200">Privacy Policy</Link>, and
+          confirm you are at least 18.
+        </p>
         <SubmitButton busy={busy}>Create account</SubmitButton>
       </form>
     </AuthShell>

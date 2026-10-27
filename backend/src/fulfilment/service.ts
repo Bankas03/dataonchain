@@ -12,6 +12,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "../db";
 import { auditLogs, dataPlans, ledgerEntries, orders, vtuTransactions } from "../db/schema";
+import { sendOrderEmail } from "../email/receipts";
 import { startRefund } from "../refunds/service";
 import { SERVICE_IDS, makeRequestId, purchase, requery, type VtOutcome } from "../vtpass/client";
 
@@ -115,6 +116,7 @@ async function applyOutcome(order: Order, tx: VtuTx, outcome: VtOutcome): Promis
       { journalId, account: "cost:vtu", orderId: order.id, currency: "NGN", debit: order.ngnAmountKobo, memo: `VTpass ${tx.requestId}` },
       { journalId, account: "vtpass:float", orderId: order.id, currency: "NGN", credit: order.ngnAmountKobo, memo: `VTpass ${tx.requestId}` },
     ]);
+    sendOrderEmail(order, "delivered");
     return;
   }
 

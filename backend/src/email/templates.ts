@@ -125,3 +125,47 @@ export function noticeEmail(p: { subject: string; lines: string[]; code?: string
 </html>`;
   return { subject: p.subject, text, html };
 }
+
+// Receipts for customers: a short summary table and a link to the order.
+export function receiptEmail(p: { name: string; subject: string; heading: string; rows: [string, string][]; note: string; url: string }) {
+  const first = p.name.trim().split(/\s+/)[0] || "there";
+  const text = [
+    `Hi ${first},`,
+    "",
+    p.heading,
+    "",
+    ...p.rows.map(([k, v]) => `${k}: ${v}`),
+    "",
+    p.note,
+    "",
+    `View your order: ${p.url}`,
+    "",
+    "dataonchain",
+  ].join("\n");
+  const rows = p.rows
+    .map(
+      ([k, v]) =>
+        `<tr><td style="padding:6px 12px 6px 0;color:#71717a;font-size:14px;white-space:nowrap;vertical-align:top;">${escapeHtml(k)}</td><td style="padding:6px 0;font-size:14px;word-break:break-all;">${escapeHtml(v)}</td></tr>`,
+    )
+    .join("");
+  const html = `<!doctype html>
+<html>
+  <body style="margin:0;padding:24px;background:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#18181b;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr><td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:12px;padding:32px;">
+          <tr><td style="font-size:18px;font-weight:bold;color:#047857;">dataonchain</td></tr>
+          <tr><td style="padding-top:24px;font-size:16px;">Hi ${escapeHtml(first)},</td></tr>
+          <tr><td style="padding-top:12px;font-size:16px;line-height:1.5;">${escapeHtml(p.heading)}</td></tr>
+          <tr><td style="padding-top:16px;"><table role="presentation" cellpadding="0" cellspacing="0">${rows}</table></td></tr>
+          <tr><td style="padding-top:16px;font-size:14px;line-height:1.5;color:#3f3f46;">${escapeHtml(p.note)}</td></tr>
+          <tr><td style="padding-top:24px;">
+            <a href="${escapeHtml(p.url)}" style="display:inline-block;background:#047857;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:8px;">View your order</a>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>`;
+  return { subject: p.subject, text, html };
+}

@@ -81,6 +81,19 @@ export const auth = betterAuth({
           return { data: { ...user, phone } };
         },
       },
+      // Changing the phone number on the Account page: same check as at sign up
+      update: {
+        before: async (data) => {
+          if (!("phone" in data) || (data as { phone?: unknown }).phone === undefined) return { data };
+          const phone = normalizeNigerianPhone(String((data as { phone?: unknown }).phone ?? ""));
+          if (!phone) {
+            throw new APIError("BAD_REQUEST", {
+              message: "Enter a valid Nigerian phone number, for example 08012345678",
+            });
+          }
+          return { data: { ...data, phone } };
+        },
+      },
     },
   },
 

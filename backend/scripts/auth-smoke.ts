@@ -123,6 +123,27 @@ async function main() {
   const wrong = await call("/api/auth/sign-in/email", "POST", { email, password: "wrong-password" });
   check(wrong.status === 401 || wrong.status === 400, "wrong password is refused", wrong.body);
 
+  // Account page: phone number changes are checked like at sign up
+  const acct = cookieOf(login);
+  const badPhone = await call("/api/auth/update-user", "POST", { phone: "12345" }, acct);
+  check(badPhone.status >= 400 && badPhone.status < 500, "an invalid phone number is refused on the account page", badPhone.body);
+  const goodPhone = await call("/api/auth/update-user", "POST", { phone: "0803 111 2222", name: "Smoke Tester" }, acct);
+  check(goodPhone.status === 200, "name and phone can be updated", goodPhone.body);
+  const me2 = await call("/api/me", "GET", undefined, acct);
+  const me2User = (me2.body as { user?: { phone?: string; name?: string } }).user;
+  check(me2User?.phone === "+2348031112222" && me2User?.name === "Smoke Tester", "the new phone is saved as +2348031112222", me2.body);
+  const roleTry = await call("/api/auth/update-user", "POST", { role: "admin" }, acct);
+  const me3 = await call("/api/me", "GET", undefined, acct);
+  check((me3.body as { user?: { role?: string } }).user?.role === "user", "users cannot make themselves admin", roleTry.body);
+
+  // Order history and CSV download
+  const history = await call("/api/history?page=1", "GET", undefined, acct);
+  check(history.status === 200 && typeof (history.body as { total?: unknown }).total === "number", "order history loads", history.body);
+  const csv = await call("/api/history.csv", "GET", undefined, acct);
+  check(csv.status === 200 && typeof csv.body === "string" && (csv.body as string).startsWith('"Date (Lagos)"'), "order history downloads as CSV", csv.body);
+  const anonCsv = await call("/api/history.csv", "GET");
+  check(anonCsv.status === 401, "the CSV needs a login", anonCsv.status);
+
   // Forgot password
   const loggedIn = cookieOf(login);
   const ask = await call("/api/auth/request-password-reset", "POST", { email, redirectTo: "/reset-password" });

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
+import { SupportLink } from "@/components/SupportLink";
 import { STATUS_LABELS, describe, naira, stillMoving, toneClass, usdc, type OrderView } from "@/lib/orders";
 
 export default function OrderPage() {
@@ -187,6 +188,23 @@ export default function OrderPage() {
                 Print or save receipt
               </button>
             ) : null}
+            {["FULFILLED", "REFUNDED", "FAILED", "EXPIRED"].includes(order.status) ? (
+              <Link
+                href={`/buy?${new URLSearchParams({
+                  service: order.serviceType,
+                  network: order.network,
+                  phone: order.phone,
+                  ...(order.serviceType === "data" && order.planId ? { plan: order.planId } : {}),
+                  ...(order.serviceType === "airtime" ? { amount: String(order.ngnAmount) } : {}),
+                }).toString()}`}
+                className="block w-full rounded-lg bg-emerald-700 px-4 py-2.5 text-center text-sm font-medium text-white hover:bg-emerald-800"
+              >
+                Buy again
+              </Link>
+            ) : null}
+            <SupportLink block message={`Hello dataonchain, I need help with order ${order.reference} (${label.text}, ${order.phone}).`}>
+              Report a problem on WhatsApp
+            </SupportLink>
             <Link href="/buy" className="block w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-center text-sm font-medium text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
               Buy something else
             </Link>

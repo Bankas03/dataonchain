@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 
@@ -60,6 +60,38 @@ export default function BuyPage() {
   const [busy, setBusy] = useState(false);
   const [balance, setBalance] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [recent, setRecent] = useState<{ phone: string; network: Network }[]>([]);
+  // "Buy again" links open this page with the details filled in (?service=&network=&phone=&plan=&amount=)
+  const pendingPlan = useRef<string | null>(null);
+
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const s = q.get("service");
+    const n = q.get("network");
+    if (s === "data" || s === "airtime") setService(s);
+    if (n && NETWORKS.some((x) => x.id === n)) setNetwork(n as Network);
+    if (q.get("phone")) setPhone(q.get("phone") ?? "");
+    if (q.get("amount")) setAmount(q.get("amount") ?? "");
+    pendingPlan.current = q.get("plan");
+  }, []);
+
+  // Numbers bought for before, newest first, to fill in with one tap
+  useEffect(() => {
+    if (!session) return;
+    api<{ orders: { phone: string; network: Network }[] }>("/orders")
+      .then((r) => {
+        const seen = new Set<string>();
+        const list: { phone: string; network: Network }[] = [];
+        for (const o of r.orders) {
+          if (seen.has(o.phone)) continue;
+          seen.add(o.phone);
+          list.push({ phone: o.phone, network: o.network });
+          if (list.length === 4) break;
+        }
+        setRecent(list);
+      })
+      .catch(() => setRecent([]));
+  }, [session]);
 
   useEffect(() => {
     if (!isPending && !session) router.replace("/login");
@@ -84,7 +116,13 @@ export default function BuyPage() {
     setPlanId("");
     setError(null);
     api<{ plans: Plan[] }>(`/plans?network=${network}`)
-      .then((r) => !cancelled && setPlans(r.plans))
+      .then((r) => {
+        if (cancelled) return;
+        setPlans(r.plans);
+        const wanted = pendingPlan.current;
+        if (wanted && r.plans.some((p) => p.id === wanted)) setPlanId(wanted);
+        pendingPlan.current = null;
+      })
       .catch((e: Error) => !cancelled && setError(e.message))
       .finally(() => !cancelled && setPlansLoading(false));
     return () => {
@@ -239,6 +277,23 @@ export default function BuyPage() {
                 Make sure this number is on {networkLabel(network)}.
               </span>
             </label>
+            {recent.length > 0 ? (
+              <div className="-mt-3 flex flex-wrap gap-2">
+                {recent.map((r) => (
+                  <button
+                    key={r.phone}
+                    type="button"
+                    onClick={() => {
+                      setPhone(r.phone);
+                      setNetwork(r.network);
+                    }}
+                    className={choiceClass(phone === r.phone)}
+                  >
+                    {r.phone} <span className="text-xs text-zinc-500">{networkLabel(r.network)}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
             {error ? (
               <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>

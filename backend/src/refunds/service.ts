@@ -16,6 +16,7 @@ import { circle } from "../circle/client";
 import { db } from "../db";
 import { auditLogs, ledgerEntries, orders, payments, refunds } from "../db/schema";
 import { env } from "../env";
+import { sendOrderEmail } from "../email/receipts";
 import { ensureUserWallet } from "../wallets/service";
 
 const MAX_ATTEMPTS = 3;
@@ -203,6 +204,7 @@ async function checkRefund(order: Order, refund: Refund): Promise<void> {
     { journalId, account: "treasury:usdc", orderId: order.id, currency: "USDC", credit: refund.amountMicro, memo: `Refund ${order.reference}` },
   ]);
   await audit("refund.confirmed", order.id, { txHash: tx.txHash, amountMicro: refund.amountMicro });
+  sendOrderEmail(order, "refunded", tx.txHash ?? null);
 }
 
 export async function getRefundView(orderId: string) {

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { SupportLink } from "@/components/SupportLink";
+import { SUPPORT_WHATSAPP_DISPLAY } from "@/lib/support";
 
 // The public home page: what dataonchain is, why it is built on Arc, the Arc
 // and Circle tools behind it, what is done, and what comes next.
@@ -138,6 +140,10 @@ const FAQ: { q: string; a: string }[] = [
   {
     q: "Why Arc?",
     a: "Fees are paid in USDC, payments are final in under a second, and Arc comes from Circle, the issuer of USDC, with wallets, gas sponsorship, crosschain transfers and swaps built in. See the Why Arc section above for more.",
+  },
+  {
+    q: "How do I contact you?",
+    a: `Chat with us on WhatsApp at ${SUPPORT_WHATSAPP_DISPLAY}. If it is about an order, use the Report a problem button on the order page: it sends us the order reference so we can help faster.`,
   },
   {
     q: "Is dataonchain a registered company?",
@@ -378,9 +384,17 @@ export default function Home() {
       </section>
 
       <footer className="border-t border-zinc-200 py-8 dark:border-zinc-800">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 text-sm text-zinc-500">
-          <span>© {new Date().getFullYear()} dataonchain · Built on Arc</span>
-          <span>Currently on Arc Testnet. Test USDC has no value.</span>
+        <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p>© {new Date().getFullYear()} dataonchain · Built on Arc</p>
+            <p>Currently on Arc Testnet. Test USDC has no value.</p>
+          </div>
+          <nav className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <Link href="/terms" className="hover:text-zinc-900 dark:hover:text-zinc-100">Terms</Link>
+            <Link href="/privacy" className="hover:text-zinc-900 dark:hover:text-zinc-100">Privacy</Link>
+            <Link href="/refund-policy" className="hover:text-zinc-900 dark:hover:text-zinc-100">Refunds</Link>
+            <SupportLink>WhatsApp {SUPPORT_WHATSAPP_DISPLAY}</SupportLink>
+          </nav>
         </div>
       </footer>
     </main>

@@ -6,7 +6,7 @@
 // Every status change is conditional ("only if it is still X"), so two
 // requests at the same time can never pay twice or confirm twice.
 import { createHash, randomUUID } from "node:crypto";
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, notInArray } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lt, notInArray } from "drizzle-orm";
 import { circle } from "../circle/client";
 import { db } from "../db";
 import { isUniqueViolation } from "../db/errors";
@@ -424,6 +424,7 @@ export async function getOrderView(userId: string, reference: string) {
     serviceType: order.serviceType,
     network: order.network,
     planName: plan?.name ?? null,
+    planId: order.planId,
     phone: localPhone(order.phone),
     ngnAmount: order.ngnAmountKobo / 100,
     usdcAmount: microToUsdc(order.usdcAmountMicro),
@@ -461,6 +462,86 @@ export async function listOrders(userId: string) {
     usdcAmount: microToUsdc(order.usdcAmountMicro),
     createdAt: order.createdAt.toISOString(),
   }));
+}
+
+// Full order history for the History page: 25 per page, optional status filter.
+const HISTORY_PAGE = 25;
+const HISTORY_GROUPS: Record<string, readonly Order["status"][]> = {
+  delivered: ["FULFILLED"],
+  refunded: ["REFUNDED", "REFUND_PENDING"],
+  failed: ["FAILED"],
+  open: ["PAYMENT_PENDING", "PAYMENT_CONFIRMED", "FULFILMENT_PENDING", "FLAGGED"],
+};
+
+export async function orderHistory(userId: string, page: number, group?: string) {
+  const statuses = group && HISTORY_GROUPS[group] ? [...HISTORY_GROUPS[group]!] : null;
+  const where = and(
+    eq(orders.userId, userId),
+    notInArray(orders.status, ["QUOTED", "EXPIRED"]),
+    statuses ? inArray(orders.status, statuses) : undefined,
+  );
+  const [total] = await db.select({ n: count() }).from(orders).where(where);
+  const rows = await db
+    .select({ order: orders, planName: dataPlans.name })
+    .from(orders)
+    .leftJoin(dataPlans, eq(orders.planId, dataPlans.id))
+    .where(where)
+    .orderBy(desc(orders.createdAt))
+    .limit(HISTORY_PAGE)
+    .offset((page - 1) * HISTORY_PAGE);
+  return {
+    total: total?.n ?? 0,
+    page,
+    pageSize: HISTORY_PAGE,
+    orders: rows.map(({ order, planName }) => ({
+      reference: order.reference,
+      status: order.status,
+      serviceType: order.serviceType,
+      network: order.network,
+      planName: planName ?? null,
+      phone: localPhone(order.phone),
+      ngnAmount: order.ngnAmountKobo / 100,
+      usdcAmount: microToUsdc(order.usdcAmountMicro),
+      createdAt: order.createdAt.toISOString(),
+    })),
+  };
+}
+
+// Every order as a CSV file (up to 5,000), for the "Download CSV" button.
+export async function orderHistoryCsv(userId: string): Promise<string> {
+  const rows = await db
+    .select({ order: orders, planName: dataPlans.name, txHash: payments.txHash })
+    .from(orders)
+    .leftJoin(dataPlans, eq(orders.planId, dataPlans.id))
+    .leftJoin(payments, and(eq(payments.orderId, orders.id), eq(payments.status, "CONFIRMED")))
+    .where(and(eq(orders.userId, userId), notInArray(orders.status, ["QUOTED", "EXPIRED"])))
+    .orderBy(desc(orders.createdAt))
+    .limit(5000);
+  const cell = (v: string | number | null) => {
+    const t = v === null ? "" : String(v);
+    // Quote every cell; a leading = + - @ is neutralised so spreadsheets never run it as a formula
+    return `"${(/^[=+\-@]/.test(t) ? `'${t}` : t).replace(/"/g, '""')}"`;
+  };
+  const lines = [
+    ["Date (Lagos)", "Reference", "Type", "Network", "Plan", "Phone", "Naira value", "USDC paid", "Status", "Payment transaction"].map(cell).join(","),
+    ...rows.map(({ order, planName, txHash }) =>
+      [
+        order.createdAt.toLocaleString("en-GB", { timeZone: "Africa/Lagos" }),
+        order.reference,
+        order.serviceType,
+        order.network,
+        planName,
+        localPhone(order.phone),
+        (order.ngnAmountKobo / 100).toFixed(2),
+        microToUsdc(order.usdcAmountMicro),
+        order.status,
+        txHash,
+      ]
+        .map(cell)
+        .join(","),
+    ),
+  ];
+  return `${lines.join("\r\n")}\r\n`;
 }
 
 // Used by the background worker later: every order still waiting for its payment.

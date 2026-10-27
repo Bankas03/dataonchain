@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { BRIDGE_DONE, BRIDGE_LABELS, STEP_LABELS, type BridgeView } from "@/lib/bridge";
 import { toneClass } from "@/lib/orders";
+import { SupportLink } from "@/components/SupportLink";
 
 const MILESTONES = [
   { key: "deposit", text: "Moved into Circle Gateway", done: ["DEPOSITED", "FINALIZED", "INTENT_SIGNED", "SUBMITTED", "MINTED", "COMPLETE", "EXPIRED"] },
@@ -165,6 +166,9 @@ export default function BridgeTransferPage() {
               </ul>
             </div>
 
+            <SupportLink block message={`Hello dataonchain, I need help with my transfer ${t.id} (${t.amount} USDC to ${t.destinationChainLabel}, ${label.text}).`}>
+              Report a problem on WhatsApp
+            </SupportLink>
             <Link
               href="/bridge"
               className="block w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-center text-sm font-medium text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"

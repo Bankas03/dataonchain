@@ -6,7 +6,7 @@ import { auth } from "./auth";
 import { requireAuth } from "./auth/middleware";
 import { client } from "./db";
 import { env } from "./env";
-import { PaymentError, getOrderView, listOrders, payOrder } from "./payments/service";
+import { PaymentError, getOrderView, listOrders, orderHistory, orderHistoryCsv, payOrder } from "./payments/service";
 import { isNetwork, listDataPlans } from "./catalog/plans";
 import { QuoteError, createQuote, getQuote } from "./pricing/quote";
 import { NETWORK_NAMES, ensureUserWallet, previousWallet } from "./wallets/service";
@@ -42,7 +42,7 @@ app.get("/health", async (c) => {
 });
 
 // Quick check that the API (and the website's /api pass through) is up.
-app.get("/api/status", async (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridgeMonitor: true, swapCode: true, admin: true, auditFixes: true, adminConfigured: Boolean(env.ADMIN_EMAIL), bridge: env.BRIDGE_ENABLED, swap: env.SWAP_ENABLED, paused: await getPauses() }));
+app.get("/api/status", async (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridgeMonitor: true, swapCode: true, admin: true, auditFixes: true, accountTools: true, adminConfigured: Boolean(env.ADMIN_EMAIL), bridge: env.BRIDGE_ENABLED, swap: env.SWAP_ENABLED, paused: await getPauses() }));
 
 // Admin dashboard API (its own login; see src/admin)
 app.route("/api/admin", adminApp);
@@ -157,6 +157,25 @@ app.get("/api/orders/:reference", requireAuth, async (c) => {
   const order = await getOrderView(user.id, c.req.param("reference"));
   if (!order) return c.json({ error: "Order not found" }, 404);
   return c.json({ order });
+});
+
+// Full order history, 25 per page (?page=2&status=delivered|refunded|failed|open)
+app.get("/api/history", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  const page = Math.max(1, Math.min(10_000, Number.parseInt(c.req.query("page") ?? "1", 10) || 1));
+  return c.json(await orderHistory(user.id, page, c.req.query("status")));
+});
+
+// The same history as a CSV file
+app.get("/api/history.csv", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  const csv = await orderHistoryCsv(user.id);
+  const day = new Date().toISOString().slice(0, 10);
+  return c.body(csv, 200, {
+    "Content-Type": "text/csv; charset=utf-8",
+    "Content-Disposition": `attachment; filename="dataonchain-orders-${day}.csv"`,
+    "Cache-Control": "no-store",
+  });
 });
 
 // The signed in user's recent orders

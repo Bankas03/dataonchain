@@ -5,6 +5,7 @@ export type OrderView = {
   serviceType: "airtime" | "data";
   network: "mtn" | "airtel" | "glo" | "9mobile";
   planName: string | null;
+  planId?: string | null;
   phone: string;
   ngnAmount: number;
   usdcAmount: string;

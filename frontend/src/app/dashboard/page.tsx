@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChainWallets } from "@/components/ChainWallets";
+import { SupportLink } from "@/components/SupportLink";
 import { RecentOrders } from "@/components/RecentOrders";
 import { WalletCard } from "@/components/WalletCard";
 import { authClient } from "@/lib/auth-client";
@@ -58,12 +59,20 @@ export default function DashboardPage() {
       <div className="mx-auto max-w-2xl">
         <header className="flex items-center justify-between">
           <span className="text-lg font-semibold tracking-tight text-emerald-700 dark:text-emerald-400">dataonchain</span>
+          <div className="flex items-center gap-2">
+          <Link
+            href="/account"
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-white dark:text-zinc-300 dark:hover:bg-zinc-900"
+          >
+            Account
+          </Link>
           <button
             onClick={logOut}
             className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-800 hover:bg-white dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
           >
             Log out
           </button>
+          </div>
         </header>
 
         <h1 className="mt-10 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
@@ -108,7 +117,12 @@ export default function DashboardPage() {
         </div>
 
         <section className="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="text-sm font-medium text-zinc-500">Your account</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-zinc-500">Your account</h2>
+            <Link href="/account" className="text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400">
+              Edit
+            </Link>
+          </div>
           <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-[8rem_1fr]">
             <dt className="text-zinc-500">Name</dt>
             <dd className="text-zinc-900 dark:text-zinc-100">{user.name}</dd>
@@ -129,6 +143,10 @@ export default function DashboardPage() {
         <WalletCard />
         {bridgeOn ? <ChainWallets /> : null}
         <RecentOrders />
+
+        <p className="mt-8 text-center text-sm text-zinc-500">
+          Need help? <SupportLink />
+        </p>
       </div>
     </main>
   );
