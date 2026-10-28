@@ -8,7 +8,7 @@ export default function TermsPage() {
   return (
     <LegalPage
       title="Terms of Service"
-      updated="27 October 2026"
+      updated="28 October 2026"
       intro={
         <p>
           These terms are the agreement between you and dataonchain when you use our website and services. By creating an
@@ -25,14 +25,13 @@ export default function TermsPage() {
         When it is complete, this page will show our registered name and address.
       </p>
 
-      <h2>2. Public testing</h2>
-      <p>dataonchain is currently in public testing on Arc Testnet. During this period:</p>
+      <h2>2. Launch on Arc mainnet</h2>
+      <p>dataonchain runs on Arc mainnet with real USDC. Features open step by step:</p>
       <ul>
-        <li>USDC, EURC and cirBTC on Arc Testnet are test tokens with no real value.</li>
-        <li>Airtime and data purchases go through our provider&apos;s test environment and are not delivered to real phones.</li>
-        <li>Features, limits and fees may change at any time, and the service may be paused or reset.</li>
+        <li>Buying airtime and data opens after our company registration and a live provider are in place.</li>
+        <li>Sending to other networks and swaps open when we announce them on the website.</li>
+        <li>Limits apply while we launch, and features, limits and fees may change. We may pause a feature for maintenance or safety.</li>
       </ul>
-      <p>Do not send real money or real tokens to any dataonchain wallet while we are in testing.</p>
 
       <h2>3. Who can use dataonchain</h2>
       <ul>

@@ -45,7 +45,7 @@ const TOOLS = [
   { name: "USDC", text: "The digital dollar users pay with, and the currency Arc uses for its own network fees." },
   { name: "Circle Wallets", text: "A smart contract wallet created for every user at sign up, so people who have never used crypto can start in a minute." },
   { name: "Circle Gas Station", text: "Pays the network fee for our users' smart wallets. Nobody needs gas to buy airtime." },
-  { name: "Circle Gateway", text: "One USDC balance that moves to seven other networks: Base, Arbitrum, Ethereum, Avalanche, OP, Polygon and Unichain, with no gas needed on any of them." },
+  { name: "Circle Gateway", text: "One USDC balance that moves to six other networks: Base, Arbitrum, Avalanche, OP, Polygon and Unichain, with no gas needed on any of them." },
   { name: "App Kit", text: "Powers swaps between USDC, EURC and cirBTC on Arc, with a guaranteed minimum on every swap." },
   { name: "EURC and cirBTC", text: "More than dollars: users can hold and swap into euro stablecoins and Bitcoin on Arc." },
 ];
@@ -61,11 +61,12 @@ const MILESTONES = [
   { title: "Swaps on Arc", text: "USDC, EURC and cirBTC, with a fee shown upfront and a minimum you are guaranteed." },
   { title: "Admin dashboard and security review", text: "Full operations dashboard, a code audit, and the fixes that came from it, including password reset." },
   { title: "Public testing on Arc Testnet", text: "Early testers using the platform and shaping it with their feedback." },
+  { title: "Live on Arc mainnet", text: "Real USDC wallets on Arc mainnet for every user, with sending to other networks and swaps ready to open." },
 ];
 
 const ROADMAP = [
   { title: "Company registration", text: "Registering dataonchain with the Corporate Affairs Commission (CAC) in Nigeria.", status: "In progress" },
-  { title: "Bridge and swaps on Arc mainnet", text: "Moving crosschain transfers and swaps from Arc Testnet to Arc mainnet.", status: "Next" },
+  { title: "Bridge and swaps on Arc mainnet", text: "Deployed on Arc mainnet and opening to everyone soon.", status: "In progress" },
   { title: "Live airtime and data delivery", text: "Connecting a live VTU provider once registration is complete.", status: "Planned" },
   { title: "Full launch on Arc mainnet", text: "Real USDC payments for airtime and data, for everyone in Nigeria.", status: "Planned" },
   { title: "Easier ways to add and cash out USDC", text: "Simple on and off ramps between naira and USDC.", status: "Planned" },
@@ -78,12 +79,12 @@ const FAQ: { q: string; a: string }[] = [
     a: "A website where you buy airtime and mobile data for any Nigerian line and pay with USDC, a digital dollar, on the Arc blockchain. You can also send USDC to other blockchains and swap between USDC, EURC and cirBTC.",
   },
   {
-    q: "Can I use real money yet?",
-    a: "Not yet. dataonchain is in public testing on Arc Testnet, where USDC is free test money with no value, and airtime and data are delivered through our provider's test environment, so nothing reaches a real phone. Real payments and real delivery come with the full launch, after our company registration and a live provider are in place.",
+    q: "Is dataonchain live?",
+    a: "Yes, on Arc mainnet, with real USDC. You can sign up, get your wallet and add USDC today. Buying airtime and data opens after our company registration and a live provider are in place, and sending to other networks and swaps open soon.",
   },
   {
-    q: "How do I get test USDC?",
-    a: "Log in and copy your wallet address from your dashboard. Then go to faucet.circle.com, choose Arc Testnet and USDC, paste your address and request it. It arrives in your wallet within a minute.",
+    q: "How do I add USDC?",
+    a: "Open Add USDC from your dashboard and copy your address, or scan the QR code. From an exchange or another wallet, send USDC and choose Arc as the network. USDC sent on any other network, or any other token, may be lost.",
   },
   {
     q: "Do I need a crypto wallet, a seed phrase or any crypto knowledge?",
@@ -115,11 +116,11 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "What is Send to another network?",
-    a: "It moves USDC from your Arc wallet to your own wallet on Base, Arbitrum, Ethereum, Avalanche, OP, Polygon or Unichain, or to an approved provider, through Circle Gateway. You pay no gas on any network, only Circle's fee, which is shown before you confirm. A transfer can take up to about 20 minutes while the networks confirm it, and Move to Arc brings your USDC back.",
+    a: "It moves USDC from your Arc wallet to your own wallet on Base, Arbitrum, Avalanche, OP, Polygon or Unichain, or to an approved provider, through Circle Gateway. You pay no gas on any network, only Circle's fee, which is shown before you confirm. A transfer can take up to about 20 minutes while the networks confirm it, and Move to Arc brings your USDC back.",
   },
   {
     q: "Are there limits on sending?",
-    a: "Yes, while we are testing: 1 to 100 USDC per transfer and 200 USDC per day, one transfer at a time.",
+    a: "Yes, at launch: 1 to 50 USDC per transfer and 100 USDC per day, one transfer at a time.",
   },
   {
     q: "Can I send USDC to any wallet address?",
@@ -127,11 +128,11 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "How do swaps work?",
-    a: "On the Swap page, pick two of USDC, EURC and cirBTC and enter an amount. You see what you get, the fee (0.5%) and the minimum you are guaranteed. If the price moves below that minimum, the swap is cancelled and nothing is taken. On the test network some pairs, such as cirBTC, may have no price at times.",
+    a: "On the Swap page, pick two of USDC, EURC and cirBTC and enter an amount. You see what you get, the fee (0.5%) and the minimum you are guaranteed. If the price moves below that minimum, the swap is cancelled and nothing is taken. Some pairs may have no price at times.",
   },
   {
     q: "Is my money safe?",
-    a: "Every payment, refund and swap is a real transaction on Arc that you can open in the Arc explorer from your order page. Payments that fail are refunded automatically, and every crosschain transfer is recorded step by step and checked against Circle every day. During testing, only test money is involved.",
+    a: "Every payment, refund and swap is a real transaction on Arc that you can open in the Arc explorer from your order page. Payments that fail are refunded automatically, and every crosschain transfer is recorded step by step and checked against Circle every day.",
   },
   {
     q: "I forgot my password. What do I do?",
@@ -147,7 +148,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Is dataonchain a registered company?",
-    a: "Our registration with the Corporate Affairs Commission (CAC) in Nigeria is in progress. Real payments start only after it is complete.",
+    a: "Our registration with the Corporate Affairs Commission (CAC) in Nigeria is in progress. Buying airtime and data opens after it is complete.",
   },
 ];
 
@@ -191,7 +192,7 @@ export default function Home() {
       <section className="mx-auto max-w-5xl px-4 pb-16 pt-16 sm:pt-24">
         <p className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
           <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-          Public testing on Arc Testnet: test USDC only, no real money
+          Live on Arc mainnet · buying airtime and data opens soon
         </p>
         <h1 className="mt-6 max-w-3xl text-4xl font-semibold tracking-tight text-zinc-900 sm:text-6xl dark:text-zinc-50">
           Buy airtime and data with USDC.
@@ -214,7 +215,7 @@ export default function Home() {
         <dl className="mt-14 grid grid-cols-2 gap-6 border-t border-zinc-200 pt-8 sm:grid-cols-4 dark:border-zinc-800">
           {[
             ["4", "Nigerian networks"],
-            ["8", "blockchains connected"],
+            ["7", "blockchains connected"],
             ["0", "network fees for users"],
             ["< 1 s", "settlement on Arc"],
           ].map(([value, text]) => (
@@ -292,7 +293,7 @@ export default function Home() {
       {/* Milestones */}
       <section className="py-20">
         <div className="mx-auto max-w-5xl px-4">
-          <SectionTitle id="milestones" kicker="Milestones" title="What we have built so far" text="All of this is live today on Arc Testnet, open for anyone to test." />
+          <SectionTitle id="milestones" kicker="Milestones" title="What we have built so far" text="Built and tested in public on Arc Testnet, and now live on Arc mainnet." />
           <ol className="mt-12 grid gap-x-10 sm:grid-cols-2">
             {MILESTONES.map((m) => (
               <li key={m.title} className="flex gap-4 border-b border-zinc-200 py-5 dark:border-zinc-800">
@@ -366,10 +367,10 @@ export default function Home() {
       <section className="py-20">
         <div className="mx-auto max-w-5xl px-4">
           <div className="rounded-2xl bg-emerald-800 px-6 py-12 text-center sm:px-12">
-            <h2 className="text-3xl font-semibold tracking-tight text-white">Help us test it</h2>
+            <h2 className="text-3xl font-semibold tracking-tight text-white">Get started</h2>
             <p className="mx-auto mt-3 max-w-xl text-emerald-100">
-              Create an account, get free test USDC, and try buying airtime, sending USDC to another network or swapping on
-              Arc. Your feedback shapes the launch.
+              Create an account and get your USDC wallet on Arc in a minute. Buying airtime and data, sending to other
+              networks and swaps open soon.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Link href="/signup" className="rounded-lg bg-white px-5 py-3 font-medium text-emerald-900 hover:bg-emerald-50">
@@ -387,7 +388,7 @@ export default function Home() {
         <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <p>© {new Date().getFullYear()} dataonchain · Built on Arc</p>
-            <p>Currently on Arc Testnet. Test USDC has no value.</p>
+            <p>Live on Arc mainnet.</p>
           </div>
           <nav className="flex flex-wrap items-center gap-x-5 gap-y-2">
             <Link href="/terms" className="hover:text-zinc-900 dark:hover:text-zinc-100">Terms</Link>
