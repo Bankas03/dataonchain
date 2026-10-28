@@ -40,9 +40,35 @@ const TESTNET: BridgeChain[] = ([
     usdc: "0x31d0220469e10c4E71834a79b1f276d740d3768F", explorerTx: "https://sepolia.uniscan.xyz/tx/" },
 ] as Omit<BridgeChain, "gatewayWallet" | "gatewayMinter">[]).map((c) => ({ ...c, gatewayWallet: GATEWAY_WALLET_TESTNET, gatewayMinter: GATEWAY_MINTER_TESTNET }));
 
+// Mainnet (checked against Circle's and Arc's contract address pages, October 2026).
+// Ethereum is left out at launch: smart wallet set up and gas there cost several
+// dollars, paid through Gas Station. Add it back here when that makes sense.
+const GATEWAY_WALLET_MAINNET: `0x${string}` = "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE";
+const GATEWAY_MINTER_MAINNET: `0x${string}` = "0x2222222d7164433c4C09B0b0D809a9b52C04C205";
+
+const MAINNET: BridgeChain[] = ([
+  { key: "arc", label: "Arc", circleBlockchain: "ARC", domain: 26,
+    usdc: "0x3600000000000000000000000000000000000000", explorerTx: "https://explorer.arc.io/tx/" },
+  { key: "base", label: "Base", circleBlockchain: "BASE", domain: 6,
+    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", explorerTx: "https://basescan.org/tx/" },
+  { key: "arbitrum", label: "Arbitrum", circleBlockchain: "ARB", domain: 3,
+    usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", explorerTx: "https://arbiscan.io/tx/" },
+  { key: "avalanche", label: "Avalanche", circleBlockchain: "AVAX", domain: 1,
+    usdc: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", explorerTx: "https://snowtrace.io/tx/" },
+  { key: "optimism", label: "OP Mainnet", circleBlockchain: "OP", domain: 2,
+    usdc: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", explorerTx: "https://optimistic.etherscan.io/tx/" },
+  { key: "polygon", label: "Polygon", circleBlockchain: "MATIC", domain: 7,
+    usdc: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", explorerTx: "https://polygonscan.com/tx/" },
+  { key: "unichain", label: "Unichain", circleBlockchain: "UNI", domain: 10,
+    usdc: "0x078D782b760474a361dDA0AF3839290b0EF57AD6", explorerTx: "https://uniscan.xyz/tx/" },
+] as Omit<BridgeChain, "gatewayWallet" | "gatewayMinter">[]).map((c) => ({ ...c, gatewayWallet: GATEWAY_WALLET_MAINNET, gatewayMinter: GATEWAY_MINTER_MAINNET }));
+
+export const isMainnet = () => !env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET");
+
 function registry(): BridgeChain[] {
   if (env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET")) return TESTNET;
-  throw new Error("The bridge has no mainnet chain list yet. Add it (and test it) before launch.");
+  if (env.CIRCLE_BLOCKCHAIN === "ARC") return MAINNET;
+  throw new Error(`No bridge chain list for ${env.CIRCLE_BLOCKCHAIN}.`);
 }
 
 export function bridgeChains(): BridgeChain[] {

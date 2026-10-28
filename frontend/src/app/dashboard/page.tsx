@@ -15,14 +15,20 @@ export default function DashboardPage() {
   const [bridgeOn, setBridgeOn] = useState(false);
   const [swapOn, setSwapOn] = useState(false);
   const [paused, setPaused] = useState<string[]>([]);
+  const [mainnet, setMainnet] = useState(false);
+  const [notices, setNotices] = useState<string[]>([]);
+  const [buyPaused, setBuyPaused] = useState(false);
 
   // The "Send to a provider" button appears only when bridging is switched on
   useEffect(() => {
     fetch("/api/status")
       .then((r) => r.json())
-      .then((s: { bridge?: boolean; swap?: boolean; paused?: { purchasesPaused?: boolean; bridgePaused?: boolean; swapPaused?: boolean } }) => {
+      .then((s: { bridge?: boolean; swap?: boolean; network?: string; notices?: string[]; paused?: { purchasesPaused?: boolean; bridgePaused?: boolean; swapPaused?: boolean } }) => {
         setBridgeOn(Boolean(s.bridge));
         setSwapOn(Boolean(s.swap));
+        setMainnet(s.network === "mainnet");
+        setNotices(s.notices ?? []);
+        setBuyPaused(Boolean(s.paused?.purchasesPaused));
         const parts: string[] = [];
         if (s.paused?.purchasesPaused) parts.push("buying airtime and data");
         if (s.paused?.bridgePaused && s.bridge) parts.push("sending to other networks");
@@ -85,19 +91,32 @@ export default function DashboardPage() {
             still go out.
           </p>
         ) : null}
-        {paused.length > 0 ? (
+        {mainnet && notices.length > 0 ? (
+          <div className="mt-4 rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-900 dark:bg-sky-950 dark:text-sky-200">
+            {notices.map((n) => (
+              <p key={n}>{n}</p>
+            ))}
+          </div>
+        ) : null}
+        {!mainnet && paused.length > 0 ? (
           <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
             Short maintenance: {paused.join(", ")} {paused.length > 1 ? "are" : "is"} paused for now. Your balance is safe.
           </p>
         ) : null}
 
         <div className="mt-4 flex flex-wrap gap-3">
-          <Link
-            href="/buy"
-            className="inline-block rounded-lg bg-emerald-700 px-4 py-2.5 font-medium text-white hover:bg-emerald-800"
-          >
-            Buy airtime or data
-          </Link>
+          {mainnet && buyPaused ? (
+            <span className="inline-block cursor-not-allowed rounded-lg bg-zinc-200 px-4 py-2.5 font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+              Buy airtime or data · coming soon
+            </span>
+          ) : (
+            <Link
+              href="/buy"
+              className="inline-block rounded-lg bg-emerald-700 px-4 py-2.5 font-medium text-white hover:bg-emerald-800"
+            >
+              Buy airtime or data
+            </Link>
+          )}
           {swapOn ? (
             <Link
               href="/swap"

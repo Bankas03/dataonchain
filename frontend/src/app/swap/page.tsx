@@ -245,7 +245,7 @@ export default function SwapPage() {
                   Change
                 </button>
               </div>
-              <p className="text-xs text-zinc-500">Prices on the test network can move a lot. If the swap is cancelled, nothing is taken.</p>
+              <p className="text-xs text-zinc-500">Prices can move quickly. If the swap would give less than the minimum, it is cancelled and nothing is taken.</p>
             </div>
           ) : null}
 

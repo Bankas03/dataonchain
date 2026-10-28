@@ -78,6 +78,9 @@ export const env = {
   SWAP_FEE_BPS: wholeNumber("SWAP_FEE_BPS", 50, 0, 1000), // 0.5%, paid to the treasury
   SWAP_SLIPPAGE_BPS: wholeNumber("SWAP_SLIPPAGE_BPS", 100, 1, 1000), // 1%
   SWAP_DAILY_COUNT: wholeNumber("SWAP_DAILY_COUNT", 20, 1, 1000),
+  // Largest swap: USDC or EURC, and cirBTC (start small on mainnet)
+  SWAP_MAX_STABLE: optionalNumber("SWAP_MAX_STABLE") ?? 500,
+  SWAP_MAX_CIRBTC: optionalNumber("SWAP_MAX_CIRBTC") ?? 0.01,
   // Where bridge alerts and the daily bridge report are emailed (optional)
   ALERT_EMAIL: process.env.ALERT_EMAIL?.trim() || undefined,
   // Limits for users bridging out (USDC)

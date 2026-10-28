@@ -28,9 +28,9 @@ export class SwapError extends Error {
 
 // Decimals and per swap limits, in token units
 export const TOKENS: Record<SwapToken, { decimals: number; min: number; max: number; label: string }> = {
-  USDC: { decimals: 6, min: 0.5, max: 500, label: "USDC" },
-  EURC: { decimals: 6, min: 0.5, max: 500, label: "EURC" },
-  cirBTC: { decimals: 8, min: 0.000005, max: 0.01, label: "cirBTC" },
+  USDC: { decimals: 6, min: 0.5, max: env.SWAP_MAX_STABLE, label: "USDC" },
+  EURC: { decimals: 6, min: 0.5, max: env.SWAP_MAX_STABLE, label: "EURC" },
+  cirBTC: { decimals: 8, min: 0.000005, max: env.SWAP_MAX_CIRBTC, label: "cirBTC" },
 };
 
 const CHAIN = env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") ? "Arc_Testnet" : "Arc";
