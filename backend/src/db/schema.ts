@@ -477,6 +477,8 @@ export const webhookEvents = sqliteTable(
 // Bridge (Circle Gateway): one row per crosschain transfer, and every step it
 // went through in bridge_events, from the deposit to the final mint.
 // ---------------------------------------------------------------------------
+export const NETWORK_FEE_STATUSES = ["PENDING", "SENT", "COMPLETE", "FAILED"] as const;
+
 export const bridgeTransfers = sqliteTable(
   "bridge_transfers",
   {
@@ -493,6 +495,12 @@ export const bridgeTransfers = sqliteTable(
     amountMicro: integer("amount_micro").notNull(), // what the recipient receives
     maxFeeMicro: integer("max_fee_micro"),          // the most Circle may take
     forwardingFeeMicro: integer("forwarding_fee_micro"),
+    // Our transfer fee, taken from the user's Arc wallet after the transfer
+    // completes (never for a failed one) and sent to the treasury
+    networkFeeMicro: integer("network_fee_micro").notNull().default(0),
+    networkFeeStatus: text("network_fee_status", { enum: NETWORK_FEE_STATUSES }),
+    networkFeeTxId: text("network_fee_tx_id"), // Circle transaction id
+    networkFeeTxHash: text("network_fee_tx_hash"),
     salt: text("salt").notNull().unique(),
     burnIntent: text("burn_intent", { mode: "json" }),
     signature: text("signature"),

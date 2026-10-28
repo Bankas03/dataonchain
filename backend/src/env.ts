@@ -89,10 +89,22 @@ export const env = {
   BRIDGE_DAILY_USDC: optionalNumber("BRIDGE_DAILY_USDC") ?? 200,
   // The most Circle may take in fees for one bridge transfer (safety cap)
   BRIDGE_MAX_FEE_USDC: optionalNumber("BRIDGE_MAX_FEE_USDC") ?? 0.5,
+  // Our transfer fee (USDC) on each completed transfer, paid to the treasury.
+  // It covers the gas we sponsor through Circle Gas Station. 0 switches it off.
+  BRIDGE_NETWORK_FEE_USDC: optionalNumber("BRIDGE_NETWORK_FEE_USDC") ?? 0.1,
+  // Networks users can send to (comma separated keys). Default: all on testnet,
+  // Arc and Base on mainnet (the networks with a Gas Station policy).
+  BRIDGE_CHAINS: (process.env.BRIDGE_CHAINS?.trim() ||
+    ((process.env.CIRCLE_BLOCKCHAIN ?? "ARC-TESTNET").endsWith("TESTNET") ? "*" : "arc,base"))
+    .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
   // Admin dashboard: the only email that can log in, and the dashboard's address
   // (used in password reset links). Both set on Render.
   ADMIN_EMAIL: process.env.ADMIN_EMAIL?.trim().toLowerCase() || undefined,
   ADMIN_URL: (process.env.ADMIN_URL ?? "http://localhost:3001").trim().replace(/\/$/, ""),
+  // Accounts that can still use the bridge and swaps while they are paused,
+  // for live checks before opening them to everyone. Default: the admin email.
+  PAUSE_BYPASS_EMAILS: (process.env.PAUSE_BYPASS_EMAILS ?? process.env.ADMIN_EMAIL ?? "")
+    .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
   // Background worker: on in production unless WORKER_ENABLED=false
   WORKER_ENABLED: (process.env.WORKER_ENABLED ?? (NODE_ENV === "production" ? "true" : "false")) === "true",
 };

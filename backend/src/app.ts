@@ -42,7 +42,7 @@ app.get("/health", async (c) => {
 });
 
 // Quick check that the API (and the website's /api pass through) is up.
-app.get("/api/status", async (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridgeMonitor: true, swapCode: true, admin: true, auditFixes: true, accountTools: true, mainnetReady: true, adminConfigured: Boolean(env.ADMIN_EMAIL), bridge: env.BRIDGE_ENABLED, swap: env.SWAP_ENABLED, paused: await getPauses(), notices: await pauseNotices(), network: env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") ? "testnet" : "mainnet" }));
+app.get("/api/status", async (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridgeMonitor: true, swapCode: true, admin: true, auditFixes: true, accountTools: true, mainnetReady: true, networkFee: true, adminConfigured: Boolean(env.ADMIN_EMAIL), bridge: env.BRIDGE_ENABLED, swap: env.SWAP_ENABLED, paused: await getPauses(), notices: await pauseNotices(), network: env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") ? "testnet" : "mainnet" }));
 
 // Admin dashboard API (its own login; see src/admin)
 app.route("/api/admin", adminApp);
@@ -195,7 +195,7 @@ function bridgeErrors(err: unknown, c: Context) {
 
 app.get("/api/bridge/destinations", requireAuth, async (c) => {
   try {
-    return c.json({ destinations: await listDestinations(), limits: { min: env.BRIDGE_MIN_USDC, max: env.BRIDGE_MAX_USDC, daily: env.BRIDGE_DAILY_USDC } });
+    return c.json({ destinations: await listDestinations(), limits: { min: env.BRIDGE_MIN_USDC, max: env.BRIDGE_MAX_USDC, daily: env.BRIDGE_DAILY_USDC }, networkFee: env.BRIDGE_NETWORK_FEE_USDC });
   } catch (err) {
     return bridgeErrors(err, c);
   }
@@ -204,7 +204,7 @@ app.get("/api/bridge/destinations", requireAuth, async (c) => {
 app.post("/api/bridge/quote", requireAuth, async (c) => {
   const { user } = c.get("auth");
   if (!user.emailVerified) return c.json({ error: "Please confirm your email first" }, 403);
-  const paused = await pausedMessage("bridgePaused");
+  const paused = await pausedMessage("bridgePaused", user.email);
   if (paused) return c.json({ error: paused }, 503);
   const body = (await c.req.json().catch(() => ({}))) as { destinationId?: unknown; amount?: unknown };
   try {
@@ -217,7 +217,7 @@ app.post("/api/bridge/quote", requireAuth, async (c) => {
 app.post("/api/bridge/transfers", requireAuth, async (c) => {
   const { user } = c.get("auth");
   if (!user.emailVerified) return c.json({ error: "Please confirm your email first" }, 403);
-  const paused = await pausedMessage("bridgePaused");
+  const paused = await pausedMessage("bridgePaused", user.email);
   if (paused) return c.json({ error: paused }, 503);
   const body = (await c.req.json().catch(() => ({}))) as { destinationId?: unknown; amount?: unknown };
   try {
@@ -231,7 +231,7 @@ app.post("/api/bridge/transfers", requireAuth, async (c) => {
 app.get("/api/bridge/wallets", requireAuth, async (c) => {
   const { user } = c.get("auth");
   try {
-    return c.json({ wallets: await chainBalances(user.id) });
+    return c.json({ wallets: await chainBalances(user.id), networkFee: env.BRIDGE_NETWORK_FEE_USDC });
   } catch (err) {
     return bridgeErrors(err, c);
   }
@@ -241,7 +241,7 @@ app.get("/api/bridge/wallets", requireAuth, async (c) => {
 app.post("/api/bridge/return", requireAuth, async (c) => {
   const { user } = c.get("auth");
   if (!user.emailVerified) return c.json({ error: "Please confirm your email first" }, 403);
-  const paused = await pausedMessage("bridgePaused");
+  const paused = await pausedMessage("bridgePaused", user.email);
   if (paused) return c.json({ error: paused }, 503);
   const body = (await c.req.json().catch(() => ({}))) as { chain?: unknown };
   try {
@@ -286,7 +286,7 @@ app.get("/api/swap/tokens", requireAuth, async (c) => {
 app.post("/api/swap/quote", requireAuth, async (c) => {
   const { user } = c.get("auth");
   if (!user.emailVerified) return c.json({ error: "Please confirm your email first" }, 403);
-  const paused = await pausedMessage("swapPaused");
+  const paused = await pausedMessage("swapPaused", user.email);
   if (paused) return c.json({ error: paused }, 503);
   const body = (await c.req.json().catch(() => ({}))) as { tokenIn?: unknown; tokenOut?: unknown; amount?: unknown };
   try {
@@ -299,7 +299,7 @@ app.post("/api/swap/quote", requireAuth, async (c) => {
 app.post("/api/swap", requireAuth, async (c) => {
   const { user } = c.get("auth");
   if (!user.emailVerified) return c.json({ error: "Please confirm your email first" }, 403);
-  const paused = await pausedMessage("swapPaused");
+  const paused = await pausedMessage("swapPaused", user.email);
   if (paused) return c.json({ error: paused }, 503);
   const body = (await c.req.json().catch(() => ({}))) as { tokenIn?: unknown; tokenOut?: unknown; amount?: unknown };
   try {

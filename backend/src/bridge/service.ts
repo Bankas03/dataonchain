@@ -23,6 +23,7 @@ import { approvedDestinations, auditLogs, bridgeEvents, bridgeTransfers, ledgerE
 import { env } from "../env";
 import { uuidFrom } from "../wallets/service";
 import { chainByKey, feeCapMicro, isEvmAddress, type BridgeChain } from "./chains";
+import { advanceNetworkFee } from "./fees";
 import {
   type BurnIntent,
   buildSpec,
@@ -149,6 +150,8 @@ export async function createTransfer(p: {
   // The recipient is the user's own Circle wallet (checked by the caller), so it
   // does not need to be on the approved list
   trustedRecipient?: boolean;
+  // Our transfer fee, taken from the user's Arc wallet once the transfer completes
+  networkFeeMicro?: number;
 }): Promise<Transfer> {
   const source = chainByKey(p.sourceChain);
   const destination = chainByKey(p.destinationChain);
@@ -185,6 +188,8 @@ export async function createTransfer(p: {
       amountMicro: p.amountMicro,
       maxFeeMicro: est.maxFeeMicro,
       forwardingFeeMicro: est.forwardingFeeMicro,
+      networkFeeMicro: p.userId ? (p.networkFeeMicro ?? 0) : 0,
+      networkFeeStatus: p.userId && (p.networkFeeMicro ?? 0) > 0 ? "PENDING" : null,
       salt,
       burnIntent: est.burnIntent,
       status: "QUOTED",
@@ -411,6 +416,12 @@ async function stepComplete(t: Transfer) {
       actorType: "system", action: "bridge.complete", targetType: "bridge_transfer", targetId: t.id,
       details: { amountMicro: t.amountMicro, from: t.sourceChain, to: t.destinationChain, mintTxHash: t.mintTxHash },
     });
+    // Our transfer fee: started now, finished by the worker if anything is slow
+    try {
+      await advanceNetworkFee(t.id);
+    } catch (err) {
+      console.error(`[bridge] ${t.id} fee:`, err instanceof Error ? err.message : err);
+    }
   }
 }
 

@@ -11,6 +11,7 @@ import { auditLogs, bridgeTransfers } from "../db/schema";
 import { sendEmail } from "../email";
 import { env } from "../env";
 import { bridgeChains, chainByKey } from "./chains";
+import { networkFeeSummary } from "./fees";
 import { gatewayBalanceMicro, getTransfer } from "./gateway";
 import { swapSummary } from "../swap/service";
 
@@ -158,6 +159,11 @@ export async function reconcile(): Promise<Report> {
   }
   lines.push(`Held in Circle Gateway for users: ${usdc(held)} USDC across ${pairs.length} wallet(s)` +
     (Object.keys(perChain).length ? ` (${bridgeChains().filter((c) => perChain[c.key]).map((c) => `${c.label} ${usdc(perChain[c.key]!)}`).join(", ")})` : ""));
+
+  // Our transfer fees
+  const fees = await networkFeeSummary(since);
+  lines.push(`Transfer fees taken, last 24 hours: ${fees.collected} USDC.`);
+  for (const id of fees.failed) issues.push(`Transfer fee could not be taken for ${id} (see the audit log)`);
 
   // Swaps on Arc
   const s = await swapSummary(since);

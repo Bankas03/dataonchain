@@ -95,7 +95,7 @@ export default function BridgePage() {
     }
   }
 
-  const enough = quote ? Number(quote.available) >= Number(quote.total) : false;
+  const enough = quote ? (quote.enough ?? Number(quote.available) >= Number(quote.total)) : false;
 
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-10 dark:bg-zinc-950">
@@ -112,7 +112,8 @@ export default function BridgePage() {
         <h1 className="mt-8 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Send to another network</h1>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
           Send USDC from your Arc wallet to your own wallet on another network, or to an approved provider, through
-          Circle Gateway. You pay no gas on any network; Circle&apos;s fee is shown before you confirm.
+          Circle Gateway. You pay no gas on any network. Circle&apos;s fee and our small transfer fee are shown before you
+          confirm, and our fee is taken only when the transfer completes.
         </p>
 
         <section className="mt-6 space-y-5 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
@@ -208,6 +209,12 @@ export default function BridgePage() {
                 <dd className="font-medium text-zinc-900 dark:text-zinc-100">{quote.receives} USDC</dd>
                 <dt className="text-zinc-500">Circle fee (max)</dt>
                 <dd className="text-zinc-900 dark:text-zinc-100">{quote.fee} USDC</dd>
+                {quote.networkFee && Number(quote.networkFee) > 0 ? (
+                  <>
+                    <dt className="text-zinc-500">Our transfer fee</dt>
+                    <dd className="text-zinc-900 dark:text-zinc-100">{quote.networkFee} USDC</dd>
+                  </>
+                ) : null}
                 <dt className="text-zinc-500">From your wallet</dt>
                 <dd className="font-medium text-zinc-900 dark:text-zinc-100">{quote.total} USDC</dd>
                 <dt className="text-zinc-500">You have</dt>
@@ -221,7 +228,7 @@ export default function BridgePage() {
               ) : null}
               {!enough ? (
                 <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                  Not enough USDC for this amount plus the fee.
+                  Not enough USDC in your Arc wallet for this amount plus the fees.
                 </p>
               ) : null}
               <div className="flex gap-3">

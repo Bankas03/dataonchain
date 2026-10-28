@@ -1,7 +1,7 @@
 // Chains the bridge supports, with everything Circle Gateway needs for each.
 // Sources: developers.circle.com (Gateway contract addresses, USDC contract
-// addresses, Wallets supported blockchains). Testnet only for now; mainnet is
-// added before launch, after the same live checks.
+// addresses, Wallets supported blockchains). Which of them users can use is set
+// by BRIDGE_CHAINS (see openChains).
 import { env } from "../env";
 
 export type BridgeChain = {
@@ -84,6 +84,18 @@ export function chainByKey(key: string): BridgeChain {
 // Arc is home: user balances live there.
 export function homeChain(): BridgeChain {
   return chainByKey("arc");
+}
+
+// The networks users can send to and bring USDC back from right now
+// (BRIDGE_CHAINS; on mainnet Arc and Base, the networks with a Gas Station policy).
+export function openChains(): BridgeChain[] {
+  const all = registry();
+  if (env.BRIDGE_CHAINS.includes("*")) return all;
+  return all.filter((c) => c.key === "arc" || env.BRIDGE_CHAINS.includes(c.key));
+}
+
+export function isOpenChain(key: string): boolean {
+  return openChains().some((c) => c.key === key);
 }
 
 // The most Circle may take in fees for one transfer to this chain, in micro USDC.

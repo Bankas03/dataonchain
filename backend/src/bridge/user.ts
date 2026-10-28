@@ -8,7 +8,8 @@ import { db } from "../db";
 import { approvedDestinations, bridgeEvents, bridgeTransfers, wallets } from "../db/schema";
 import { env } from "../env";
 import { ensureUserWallet } from "../wallets/service";
-import { bridgeChains, chainByKey, feeCapMicro, homeChain, type BridgeChain } from "./chains";
+import { chainByKey, feeCapMicro, homeChain, isOpenChain, openChains, type BridgeChain } from "./chains";
+import { networkFeeMicro } from "./fees";
 import { buildSpec, estimate, gatewayBalanceMicro, microFromDecimal, newSalt } from "./gateway";
 import { BridgeError, advanceTransfer, createTransfer } from "./service";
 import { ensureChainWallet, listChainWallets, usdcMicroOf } from "./wallets";
@@ -41,7 +42,7 @@ function requireEnabled() {
 
 function otherChains(): BridgeChain[] {
   const home = homeChain();
-  return bridgeChains().filter((c) => c.key !== home.key);
+  return openChains().filter((c) => c.key !== home.key);
 }
 
 type Target = { chain: BridgeChain; address: string; label: string; own: boolean };
@@ -61,7 +62,7 @@ async function resolveTarget(userId: string, destinationId: unknown): Promise<Ta
     .from(approvedDestinations)
     .where(and(eq(approvedDestinations.id, id), eq(approvedDestinations.active, true)))
     .limit(1);
-  if (!d) throw new BridgeUserError("Choose one of the listed destinations.", 404);
+  if (!d || !isOpenChain(d.chain)) throw new BridgeUserError("Choose one of the listed destinations.", 404);
   return { chain: chainByKey(d.chain), address: d.address, label: d.label, own: false };
 }
 
@@ -78,7 +79,7 @@ export async function listDestinations() {
   requireEnabled();
   const own = otherChains().map((c) => ({ id: `own:${c.key}`, label: `My wallet on ${c.label}`, chain: c.key, chainLabel: c.label, address: null as string | null, own: true }));
   const rows = await db.select().from(approvedDestinations).where(eq(approvedDestinations.active, true));
-  const providers = rows.map((d) => {
+  const providers = rows.filter((d) => isOpenChain(d.chain)).map((d) => {
     const chain = chainByKey(d.chain);
     return { id: d.id, label: d.label, chain: chain.key, chainLabel: chain.label, address: d.address as string | null, own: false };
   });
@@ -97,16 +98,28 @@ export async function quoteBridge(userId: string, body: { destinationId?: unknow
     true,
   );
   const [inWallet, inGateway] = await Promise.all([usdcMicroOf(wallet.circleWalletId), gatewayBalanceMicro(wallet.address, source.domain)]);
+  const netFee = networkFeeMicro();
   return {
     destination: { id: String(body.destinationId), label: target.label, chainLabel: target.chain.label, address: target.address },
     amount: usdcText(amountMicro),
     fee: usdcText(est.maxFeeMicro),
-    total: usdcText(amountMicro + est.maxFeeMicro),
+    networkFee: usdcText(netFee),
+    total: usdcText(amountMicro + est.maxFeeMicro + netFee),
     receives: usdcText(amountMicro),
     available: usdcText(inWallet + inGateway),
+    enough: covers(inWallet, inGateway, amountMicro + est.maxFeeMicro, netFee),
     allowed: est.maxFeeMicro <= feeCapMicro(target.chain),
-    note: "The fee shown is the most Circle can charge; any unused part stays in your bridge balance for next time.",
+    note: netFee > 0
+      ? "Circle's fee shown is the most it can charge; any unused part stays in your bridge balance for next time. Our transfer fee covers the network gas we pay for you, and is taken only when the transfer completes."
+      : "The fee shown is the most Circle can charge; any unused part stays in your bridge balance for next time.",
   };
+}
+
+// Enough for the transfer (wallet plus bridge balance) and, separately, our fee
+// from the wallet itself (it is paid from the Arc wallet when the transfer completes)
+function covers(inWallet: number, inGateway: number, transferMicro: number, feeMicro: number): boolean {
+  const fromWallet = Math.max(0, transferMicro - inGateway);
+  return inWallet >= fromWallet + feeMicro;
 }
 
 export async function startBridge(userId: string, body: { destinationId?: unknown; amount?: unknown }) {
@@ -139,8 +152,12 @@ export async function startBridge(userId: string, body: { destinationId?: unknow
   );
   const [inWallet, inGateway] = await Promise.all([usdcMicroOf(wallet.circleWalletId), gatewayBalanceMicro(wallet.address, source.domain)]);
   const needed = amountMicro + est.maxFeeMicro;
-  if (inWallet + inGateway < needed) {
-    throw new BridgeUserError(`Not enough USDC. You need ${usdcText(needed)} USDC (amount plus fee). You have ${usdcText(inWallet + inGateway)} USDC.`, 402);
+  const netFee = networkFeeMicro();
+  if (!covers(inWallet, inGateway, needed, netFee)) {
+    throw new BridgeUserError(
+      `Not enough USDC. You need ${usdcText(needed + netFee)} USDC (amount plus fees). You have ${usdcText(inWallet + inGateway)} USDC.`,
+      402,
+    );
   }
 
   let transfer;
@@ -155,6 +172,7 @@ export async function startBridge(userId: string, body: { destinationId?: unknow
       recipientAddress: target.address,
       amountMicro,
       trustedRecipient: target.own,
+      networkFeeMicro: netFee,
     });
   } catch (err) {
     if (err instanceof BridgeError) throw new BridgeUserError(err.message);
@@ -182,8 +200,14 @@ export async function returnToArc(userId: string, body: { chain?: unknown }) {
     true,
   );
   const amountMicro = total - est.maxFeeMicro - RETURN_BUFFER_MICRO;
-  if (amountMicro < RETURN_MIN_MICRO) {
-    throw new BridgeUserError(`There is not enough USDC on ${source.label} to move. Circle's fee is about ${usdcText(est.maxFeeMicro)} USDC.`, 402);
+  // Our transfer fee comes out of what arrives on Arc, so it must leave something worth moving
+  const netFee = networkFeeMicro();
+  if (amountMicro < RETURN_MIN_MICRO + netFee) {
+    throw new BridgeUserError(
+      `There is not enough USDC on ${source.label} to move. Circle's fee is about ${usdcText(est.maxFeeMicro)} USDC` +
+        (netFee > 0 ? ` and our transfer fee is ${usdcText(netFee)} USDC.` : "."),
+      402,
+    );
   }
 
   let transfer;
@@ -197,6 +221,7 @@ export async function returnToArc(userId: string, body: { chain?: unknown }) {
       destinationChain: home.key,
       recipientAddress: arc.address,
       amountMicro,
+      networkFeeMicro: netFee,
     });
   } catch (err) {
     if (err instanceof BridgeError) throw new BridgeUserError(err.message);
@@ -262,6 +287,8 @@ export async function getBridgeView(userId: string, id: string) {
     recipientAddress: t.recipientAddress,
     amount: usdcText(t.amountMicro),
     maxFee: t.maxFeeMicro !== null ? usdcText(t.maxFeeMicro) : null,
+    networkFee: t.networkFeeMicro > 0 ? usdcText(t.networkFeeMicro) : null,
+    networkFeeStatus: t.networkFeeStatus,
     mintTxHash: t.mintTxHash,
     mintUrl: t.mintTxHash ? `${destination.explorerTx}${t.mintTxHash}` : null,
     failureReason: t.failureReason,

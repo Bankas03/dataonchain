@@ -24,7 +24,7 @@ const HOW = [
 const WHY_ARC = [
   {
     title: "Fees are paid in USDC",
-    text: "On Arc the network fee is paid in USDC, not in a separate gas token. Our users only ever hold one thing, digital dollars, and costs are predictable in dollars. On top of that, we sponsor the fee, so users pay nothing extra.",
+    text: "On Arc the network fee is paid in USDC, not in a separate gas token. Our users only ever hold one thing, digital dollars, and costs are predictable in dollars. On top of that, we sponsor the fee, so users never need gas.",
   },
   {
     title: "Final in under a second",
@@ -44,8 +44,8 @@ const TOOLS = [
   { name: "Arc network", text: "Where every payment, refund and swap settles. Each one links to the Arc explorer so anyone can verify it." },
   { name: "USDC", text: "The digital dollar users pay with, and the currency Arc uses for its own network fees." },
   { name: "Circle Wallets", text: "A smart contract wallet created for every user at sign up, so people who have never used crypto can start in a minute." },
-  { name: "Circle Gas Station", text: "Pays the network fee for our users' smart wallets. Nobody needs gas to buy airtime." },
-  { name: "Circle Gateway", text: "One USDC balance that moves to six other networks: Base, Arbitrum, Avalanche, OP, Polygon and Unichain, with no gas needed on any of them." },
+  { name: "Circle Gas Station", text: "Pays the network fee for our users' smart wallets. Nobody needs gas to buy airtime or send USDC." },
+  { name: "Circle Gateway", text: "One USDC balance that moves between Arc and Base today, with more networks to follow, and no gas needed on either." },
   { name: "App Kit", text: "Powers swaps between USDC, EURC and cirBTC on Arc, with a guaranteed minimum on every swap." },
   { name: "EURC and cirBTC", text: "More than dollars: users can hold and swap into euro stablecoins and Bitcoin on Arc." },
 ];
@@ -56,7 +56,7 @@ const MILESTONES = [
   { title: "Airtime and data paid with USDC", text: "MTN, Airtel, Glo and 9mobile, paid on Arc and delivered through our VTU partner's test environment." },
   { title: "Instant status and automatic refunds", text: "Orders update in seconds, and failed deliveries are refunded to the wallet without anyone asking." },
   { title: "Smart wallets with no network fees", text: "Every user moved to a smart wallet with sponsored gas; existing balances moved across automatically." },
-  { title: "Send USDC to seven networks", text: "Crosschain transfers through Circle Gateway, a personal wallet on each network, and Move to Arc to bring it all home." },
+  { title: "Send USDC to other networks", text: "Crosschain transfers through Circle Gateway, tested on seven networks, with a personal wallet on each and Move to Arc to bring it all home." },
   { title: "Every transfer recorded and checked", text: "Each step from deposit to mint is recorded, stuck transfers raise alerts, and a daily report checks every transfer against Circle." },
   { title: "Swaps on Arc", text: "USDC, EURC and cirBTC, with a fee shown upfront and a minimum you are guaranteed." },
   { title: "Admin dashboard and security review", text: "Full operations dashboard, a code audit, and the fixes that came from it, including password reset." },
@@ -80,7 +80,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Is dataonchain live?",
-    a: "Yes, on Arc mainnet, with real USDC. You can sign up, get your wallet and add USDC today. Buying airtime and data opens after our company registration and a live provider are in place, and sending to other networks and swaps open soon.",
+    a: "Yes, on Arc mainnet, with real USDC. You can sign up, get your wallet and add USDC today. Sending to Base and swaps open in stages (your dashboard shows what is open), and buying airtime and data opens after our company registration and a live provider are in place.",
   },
   {
     q: "How do I add USDC?",
@@ -100,7 +100,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Do I pay a network (gas) fee?",
-    a: "No. Arc charges its network fee in USDC, and we pay it for you. You pay only the price shown.",
+    a: "No. Arc charges its network fee in USDC, and we pay it for you, on Arc and on Base. You pay only the price shown. Sending to another network has Circle's fee plus our small transfer fee (0.10 USDC), both shown before you confirm.",
   },
   {
     q: "How fast is delivery?",
@@ -116,7 +116,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "What is Send to another network?",
-    a: "It moves USDC from your Arc wallet to your own wallet on Base, Arbitrum, Avalanche, OP, Polygon or Unichain, or to an approved provider, through Circle Gateway. You pay no gas on any network, only Circle's fee, which is shown before you confirm. A transfer can take up to about 20 minutes while the networks confirm it, and Move to Arc brings your USDC back.",
+    a: "It moves USDC from your Arc wallet to your own wallet on Base, or to an approved provider, through Circle Gateway. More networks will follow. You pay no gas. You pay Circle's fee and our transfer fee of 0.10 USDC, both shown before you confirm; our fee is taken only when the transfer completes. Sending from Arc usually takes a minute or two, and Move to Arc brings your USDC back from Base in about 20 minutes while Base confirms it.",
   },
   {
     q: "Are there limits on sending?",
@@ -215,8 +215,8 @@ export default function Home() {
         <dl className="mt-14 grid grid-cols-2 gap-6 border-t border-zinc-200 pt-8 sm:grid-cols-4 dark:border-zinc-800">
           {[
             ["4", "Nigerian networks"],
-            ["7", "blockchains connected"],
-            ["0", "network fees for users"],
+            ["2", "blockchains live: Arc and Base"],
+            ["0", "gas tokens needed"],
             ["< 1 s", "settlement on Arc"],
           ].map(([value, text]) => (
             <div key={text}>
@@ -369,8 +369,8 @@ export default function Home() {
           <div className="rounded-2xl bg-emerald-800 px-6 py-12 text-center sm:px-12">
             <h2 className="text-3xl font-semibold tracking-tight text-white">Get started</h2>
             <p className="mx-auto mt-3 max-w-xl text-emerald-100">
-              Create an account and get your USDC wallet on Arc in a minute. Buying airtime and data, sending to other
-              networks and swaps open soon.
+              Create an account and get your USDC wallet on Arc in a minute. Sending to Base and swaps open in stages,
+              and buying airtime and data follows.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Link href="/signup" className="rounded-lg bg-white px-5 py-3 font-medium text-emerald-900 hover:bg-emerald-50">

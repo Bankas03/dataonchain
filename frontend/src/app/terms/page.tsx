@@ -70,7 +70,7 @@ export default function TermsPage() {
       <h2>7. Sending to other networks</h2>
       <ul>
         <li>You can send USDC from Arc to your own wallets on the supported networks, or to approved providers, through Circle Gateway. You can also bring it back to Arc.</li>
-        <li>Circle charges a fee for each transfer, shown before you confirm. We do not add our own fee to transfers.</li>
+        <li>Circle charges a fee for each transfer, shown before you confirm. We also charge a small transfer fee (currently 0.10 USDC), shown before you confirm and taken from your Arc wallet only when the transfer completes. It covers the network fees we pay for you.</li>
         <li>Transfers can take up to about 20 minutes. Limits apply per transfer and per day, and you can have one transfer in progress at a time.</li>
         <li>We may refuse or pause transfers, for example when Circle&apos;s fee is unusually high or for security reasons.</li>
       </ul>
@@ -83,8 +83,8 @@ export default function TermsPage() {
 
       <h2>9. Fees</h2>
       <p>
-        Every fee is shown before you confirm: the service fee in each airtime or data price, Circle&apos;s fee for transfers,
-        and the swap fee. You do not pay network (gas) fees for your Arc wallet; we cover them. We may change our fees, and
+        Every fee is shown before you confirm: the service fee in each airtime or data price, Circle&apos;s fee and our
+        transfer fee for transfers, and the swap fee. You do not pay network (gas) fees for your Arc wallet; we cover them. We may change our fees, and
         any change applies only to purchases made after it.
       </p>
 

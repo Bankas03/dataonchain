@@ -53,8 +53,12 @@ export async function pauseNotices(): Promise<string[]> {
 }
 
 // The message to show users when this part is paused, or null when it is open.
-export async function pausedMessage(key: PauseKey): Promise<string | null> {
-  return (await getPauses())[key] ? PAUSE_MESSAGES[key] : null;
+// Accounts in PAUSE_BYPASS_EMAILS (the admin by default) can still use the
+// bridge and swaps while they are paused, for live checks. Never purchases.
+export async function pausedMessage(key: PauseKey, email?: string | null): Promise<string | null> {
+  if (!(await getPauses())[key]) return null;
+  if (key !== "purchasesPaused" && email && env.PAUSE_BYPASS_EMAILS.includes(email.trim().toLowerCase())) return null;
+  return PAUSE_MESSAGES[key];
 }
 
 export async function setPause(key: PauseKey, paused: boolean): Promise<void> {

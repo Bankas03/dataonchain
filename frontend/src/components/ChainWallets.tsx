@@ -13,10 +13,14 @@ export function ChainWallets() {
   const [rows, setRows] = useState<ChainWallet[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fee, setFee] = useState(0);
 
   useEffect(() => {
-    api<{ wallets: ChainWallet[] }>("/bridge/wallets")
-      .then((r) => setRows(r.wallets))
+    api<{ wallets: ChainWallet[]; networkFee?: number }>("/bridge/wallets")
+      .then((r) => {
+        setRows(r.wallets);
+        setFee(r.networkFee ?? 0);
+      })
       .catch(() => setRows([]));
   }, []);
 
@@ -50,7 +54,7 @@ export function ChainWallets() {
               <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                 {w.balance === null ? "unavailable" : `${usdc(w.balance)} USDC`}
               </span>
-              {w.balance !== null && Number(w.balance) >= 0.1 ? (
+              {w.balance !== null && Number(w.balance) >= 0.1 + fee ? (
                 <button
                   onClick={() => moveToArc(w.chain)}
                   disabled={busy !== null}
@@ -64,7 +68,8 @@ export function ChainWallets() {
         ))}
       </ul>
       <p className="mt-2 text-xs text-zinc-500">
-        Move to Arc sends everything on that network back to your Arc wallet, minus Circle&apos;s fee. No gas needed.
+        Move to Arc sends everything on that network back to your Arc wallet, minus Circle&apos;s fee
+        {fee > 0 ? ` and our ${fee.toFixed(2)} USDC transfer fee (taken on Arc when it arrives)` : ""}. No gas needed.
       </p>
       {error ? (
         <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>

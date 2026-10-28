@@ -1,17 +1,23 @@
 // Own wallets on other networks, on testnet and the development database:
 //   1. a test user sends 0.2 USDC from Arc to their OWN new wallet on Base Sepolia
-//   2. the dashboard balance for Base Sepolia shows it
+//   2. the dashboard balance for Base Sepolia shows it, and our transfer fee
+//      (BRIDGE_NETWORK_FEE_USDC) went from their Arc wallet to the treasury
+//   also: only the networks in BRIDGE_CHAINS are offered, and the admin can
+//   still use the bridge while it is paused (nobody else can)
 //   3. (optional, about 20 minutes) "Move to Arc" brings it back to their Arc wallet
 // Exit code 3 means the treasury needs more test USDC.
-// Run with: BRIDGE_ENABLED=true BRIDGE_MIN_USDC=0.1 npx tsx scripts/bridge-own-smoke.ts [--with-return]
+// Run with: BRIDGE_ENABLED=true BRIDGE_MIN_USDC=0.1 BRIDGE_CHAINS=arc,base PAUSE_BYPASS_EMAILS=tester@example.com \
+//   npx tsx scripts/bridge-own-smoke.ts [--with-return]
 import { randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { circle } from "../src/circle/client";
 import { db } from "../src/db";
-import { auditLogs, bridgeEvents, bridgeTransfers, ledgerEntries, users, walletSweeps, wallets } from "../src/db/schema";
+import { appSettings, auditLogs, bridgeEvents, bridgeTransfers, ledgerEntries, users, walletSweeps, wallets } from "../src/db/schema";
 import { env } from "../src/env";
 import { BridgeUserError, chainBalances, driving, getBridgeView, listDestinations, returnToArc, startBridge } from "../src/bridge/user";
 import { usdcMicroOf } from "../src/bridge/wallets";
+import { advanceNetworkFee, networkFeeMicro } from "../src/bridge/fees";
+import { getPauses, pausedMessage, setPause } from "../src/settings";
 import { ensureUserWallet, uuidFrom } from "../src/wallets/service";
 
 const show = (micro: number) => (micro / 1_000_000).toFixed(6);
@@ -59,6 +65,30 @@ async function main() {
   try {
     const dests = await listDestinations();
     check(dests.some((d) => d.id === "own:base" && d.own), "users can choose their own wallet on Base Sepolia");
+    if (env.BRIDGE_CHAINS.join(",") === "arc,base") {
+      check(dests.every((d) => d.chain === "base"), "only Base is offered when BRIDGE_CHAINS=arc,base", dests.map((d) => d.chain));
+      try {
+        await returnToArc(userId, { chain: "polygon" });
+        check(false, "a network that is not open is refused");
+      } catch (err) {
+        check(err instanceof BridgeUserError && err.status === 404, "a network that is not open is refused");
+      }
+    }
+
+    // The admin (PAUSE_BYPASS_EMAILS) can still use a paused bridge for live checks
+    if (env.PAUSE_BYPASS_EMAILS.includes("tester@example.com")) {
+      const was = (await getPauses()).bridgePaused;
+      try {
+        await setPause("bridgePaused", true);
+        check((await pausedMessage("bridgePaused", "Tester@Example.com")) === null, "the admin can use the bridge while it is paused");
+        check((await pausedMessage("bridgePaused", "someone@example.com")) !== null, "everyone else sees the paused message");
+        check((await pausedMessage("purchasesPaused", "tester@example.com")) === (await pausedMessage("purchasesPaused", "someone@example.com")),
+          "the bypass never opens buying airtime and data");
+      } finally {
+        await setPause("bridgePaused", was);
+        if (!was) await db.delete(appSettings).where(eq(appSettings.key, "bridgePaused"));
+      }
+    }
 
     const arc = await ensureUserWallet(userId);
     console.log(`Funding the test user's Arc wallet with ${show(FUND_MICRO)} USDC from the treasury...`);
@@ -92,6 +122,23 @@ async function main() {
       base = (await chainBalances(userId)).find((w) => w.chain === "base");
     }
     check(base?.balance === "0.200000", `the dashboard shows 0.2 USDC on Base Sepolia (${base?.address})`);
+
+    // Our transfer fee: from the test user's Arc wallet to the treasury
+    const fee = networkFeeMicro();
+    if (fee > 0) {
+      let row = (await db.select().from(bridgeTransfers).where(eq(bridgeTransfers.id, out!.id)))[0];
+      for (let i = 0; i < 40 && row?.networkFeeStatus !== "COMPLETE" && row?.networkFeeStatus !== "FAILED"; i++) {
+        await advanceNetworkFee(out!.id);
+        await sleep(3_000);
+        row = (await db.select().from(bridgeTransfers).where(eq(bridgeTransfers.id, out!.id)))[0];
+      }
+      check(row?.networkFeeStatus === "COMPLETE" && Boolean(row.networkFeeTxHash) && row.networkFeeMicro === fee,
+        `our transfer fee of ${show(fee)} USDC went to the treasury (${env.EXPLORER_TX_URL}${row?.networkFeeTxHash ?? ""})`,
+        { status: row?.networkFeeStatus, micro: row?.networkFeeMicro });
+      await advanceNetworkFee(out!.id);
+      const again = (await db.select().from(bridgeTransfers).where(eq(bridgeTransfers.id, out!.id)))[0];
+      check(again?.networkFeeTxId === row?.networkFeeTxId, "the fee is never taken twice");
+    }
 
     // 3. Move it back to Arc (Base Sepolia deposits wait for full finality: about 20 minutes)
     if (withReturn) {

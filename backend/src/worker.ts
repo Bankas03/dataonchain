@@ -17,6 +17,7 @@ import { advanceRefund, startRefund } from "./refunds/service";
 import { runWalletUpgrades } from "./wallets/sweep";
 import { bridgeTransfers } from "./db/schema";
 import { driveTransfer } from "./bridge/user";
+import { advanceOpenNetworkFees } from "./bridge/fees";
 import { alertStuck, dailyReconcile } from "./bridge/monitor";
 import { releaseAbandonedSwaps } from "./swap/service";
 
@@ -79,6 +80,12 @@ export async function runWorkerOnce(): Promise<number> {
     for (const { id } of open) driveTransfer(id);
   } catch (err) {
     console.error("[worker] bridge transfers failed:", err instanceof Error ? err.message : err);
+  }
+  // Our transfer fee on completed transfers
+  try {
+    await advanceOpenNetworkFees();
+  } catch (err) {
+    console.error("[worker] transfer fees failed:", err instanceof Error ? err.message : err);
   }
   // Report stuck bridge transfers (once each) and run the daily reconciliation
   try {

@@ -7,9 +7,11 @@ export type BridgeQuote = {
   destination: { id: string; label: string; chainLabel: string; address: string };
   amount: string;
   fee: string;
+  networkFee?: string;
   total: string;
   receives: string;
   available: string;
+  enough?: boolean;
   allowed: boolean;
   note: string;
 };
@@ -27,6 +29,8 @@ export type BridgeView = {
   recipientAddress: string;
   amount: string;
   maxFee: string | null;
+  networkFee?: string | null;
+  networkFeeStatus?: string | null;
   mintTxHash: string | null;
   mintUrl: string | null;
   failureReason: string | null;

@@ -134,6 +134,23 @@ export default function BridgeTransferPage() {
                   <dd className="text-zinc-900 dark:text-zinc-100">{t.maxFee} USDC</dd>
                 </>
               ) : null}
+              {t.networkFee ? (
+                <>
+                  <dt className="text-zinc-500">Our transfer fee</dt>
+                  <dd className="text-zinc-900 dark:text-zinc-100">
+                    {t.networkFee} USDC{" "}
+                    <span className="text-xs text-zinc-500">
+                      {t.status === "FAILED"
+                        ? "(not charged)"
+                        : t.networkFeeStatus === "COMPLETE"
+                          ? "(paid)"
+                          : t.networkFeeStatus === "FAILED"
+                            ? "(not charged)"
+                            : "(taken when the transfer completes)"}
+                    </span>
+                  </dd>
+                </>
+              ) : null}
               {t.mintUrl ? (
                 <>
                   <dt className="text-zinc-500">Mint</dt>
