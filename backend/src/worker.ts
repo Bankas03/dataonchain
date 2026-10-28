@@ -18,6 +18,7 @@ import { runWalletUpgrades } from "./wallets/sweep";
 import { bridgeTransfers } from "./db/schema";
 import { driveTransfer } from "./bridge/user";
 import { advanceOpenNetworkFees } from "./bridge/fees";
+import { advanceSends } from "./send/service";
 import { alertStuck, dailyReconcile } from "./bridge/monitor";
 import { releaseAbandonedSwaps } from "./swap/service";
 
@@ -80,6 +81,12 @@ export async function runWorkerOnce(): Promise<number> {
     for (const { id } of open) driveTransfer(id);
   } catch (err) {
     console.error("[worker] bridge transfers failed:", err instanceof Error ? err.message : err);
+  }
+  // Sends to other wallets: expired codes, results from Circle, retries
+  try {
+    await advanceSends();
+  } catch (err) {
+    console.error("[worker] sends failed:", err instanceof Error ? err.message : err);
   }
   // Our transfer fee on completed transfers
   try {

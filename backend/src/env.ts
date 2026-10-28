@@ -81,6 +81,12 @@ export const env = {
   // Largest swap: USDC or EURC, and cirBTC (start small on mainnet)
   SWAP_MAX_STABLE: optionalNumber("SWAP_MAX_STABLE") ?? 500,
   SWAP_MAX_CIRBTC: optionalNumber("SWAP_MAX_CIRBTC") ?? 0.01,
+  // Sends to other Arc wallets: limits per send and per 24 hours
+  SEND_MAX_STABLE: optionalNumber("SEND_MAX_STABLE") ?? 50, // USDC or EURC per send
+  SEND_DAILY_STABLE: optionalNumber("SEND_DAILY_STABLE") ?? 100, // per token, per 24 hours
+  SEND_MAX_CIRBTC: optionalNumber("SEND_MAX_CIRBTC") ?? 0.0005,
+  SEND_DAILY_CIRBTC: optionalNumber("SEND_DAILY_CIRBTC") ?? 0.001,
+  SEND_DAILY_COUNT: wholeNumber("SEND_DAILY_COUNT", 10, 1, 1000),
   // Where bridge alerts and the daily bridge report are emailed (optional)
   ALERT_EMAIL: process.env.ALERT_EMAIL?.trim() || undefined,
   // Limits for users bridging out (USDC)

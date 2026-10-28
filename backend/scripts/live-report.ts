@@ -3,7 +3,7 @@
 // Run with: TURSO_DATABASE_URL=... TURSO_AUTH_TOKEN=... npx tsx scripts/live-report.ts
 import { desc } from "drizzle-orm";
 import { db } from "../src/db";
-import { bridgeTransfers, swaps } from "../src/db/schema";
+import { bridgeTransfers, sends, swaps } from "../src/db/schema";
 import { chainByKey } from "../src/bridge/chains";
 import { getPauses } from "../src/settings";
 
@@ -19,7 +19,7 @@ const label = (key: string) => {
 
 async function main() {
   const p = await getPauses();
-  console.log(`Paused for users: bridge ${p.bridgePaused ? "yes" : "no"}, swaps ${p.swapPaused ? "yes" : "no"}, buying ${p.purchasesPaused ? "yes" : "no"}`);
+  console.log(`Paused for users: bridge ${p.bridgePaused ? "yes" : "no"}, swaps ${p.swapPaused ? "yes" : "no"}, sends ${p.sendPaused ? "yes" : "no"}, buying ${p.purchasesPaused ? "yes" : "no"}`);
 
   const ts = await db.select().from(bridgeTransfers).orderBy(desc(bridgeTransfers.createdAt)).limit(10);
   console.log(`\nLatest transfers (${ts.length}):`);
@@ -35,6 +35,13 @@ async function main() {
   for (const s of ss) {
     console.log(`  ${when(s.createdAt)}  ${s.status.padEnd(9)} ${s.amountIn} ${s.tokenIn} -> ${s.amountOut ?? "?"} ${s.tokenOut}${s.txHash ? `  ${chainByKey("arc").explorerTx}${s.txHash}` : ""}`);
     if (s.error) console.log(`      ${s.error.slice(0, 200)}`);
+  }
+
+  const sd = await db.select().from(sends).orderBy(desc(sends.createdAt)).limit(10);
+  console.log(`\nLatest sends to other wallets (${sd.length}):`);
+  for (const s of sd) {
+    console.log(`  ${when(s.createdAt)}  ${s.status.padEnd(13)} ${s.amount} ${s.token} -> ${s.toAddress}${s.txHash ? `  ${chainByKey("arc").explorerTx}${s.txHash}` : ""}`);
+    if (s.error) console.log(`      ${s.error.slice(0, 300)}`);
   }
 }
 

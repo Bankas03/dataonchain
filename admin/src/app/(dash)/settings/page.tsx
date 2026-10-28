@@ -6,7 +6,7 @@ import { post } from "@/lib/api";
 import { ago, when } from "@/lib/format";
 import { useLoad } from "@/lib/use-load";
 
-type Pauses = { purchasesPaused: boolean; bridgePaused: boolean; swapPaused: boolean };
+type Pauses = { purchasesPaused: boolean; bridgePaused: boolean; swapPaused: boolean; sendPaused: boolean };
 type Settings = {
   pauses: Pauses;
   setup: {
@@ -36,6 +36,7 @@ const SWITCHES: { key: keyof Pauses; title: string; text: string }[] = [
   { key: "purchasesPaused", title: "Buying airtime and data", text: "New orders and payments. Orders already paid still deliver or refund." },
   { key: "bridgePaused", title: "Sending to other networks", text: "New bridge transfers and Move to Arc. Transfers already started keep going." },
   { key: "swapPaused", title: "Swaps", text: "New swaps on Arc." },
+  { key: "sendPaused", title: "Sending to other wallets", text: "New sends of USDC, EURC and cirBTC to other Arc wallets. Sends already confirmed keep going." },
 ];
 
 export default function SettingsPage() {

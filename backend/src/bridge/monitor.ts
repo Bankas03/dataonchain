@@ -14,6 +14,7 @@ import { bridgeChains, chainByKey } from "./chains";
 import { networkFeeSummary } from "./fees";
 import { gatewayBalanceMicro, getTransfer } from "./gateway";
 import { swapSummary } from "../swap/service";
+import { sendSummary } from "../send/service";
 
 type Transfer = typeof bridgeTransfers.$inferSelect;
 
@@ -169,6 +170,11 @@ export async function reconcile(): Promise<Report> {
   const s = await swapSummary(since);
   lines.push(`Swaps, last 24 hours: ${s.complete} complete, ${s.failed} failed (nothing taken).`);
   for (const u of s.unknown) issues.push(`Swap needs a check (interrupted or unclear): ${u}`);
+
+  // Sends to other wallets
+  const sd = await sendSummary(since);
+  lines.push(`Sends to other wallets, last 24 hours: ${sd.complete} complete, ${sd.failed} failed (nothing sent).`);
+  for (const u of sd.stuck) issues.push(`Send waiting for Circle over 30 minutes: ${u}`);
 
   return { generatedAt: new Date().toISOString(), issues, lines };
 }

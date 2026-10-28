@@ -113,13 +113,26 @@ function amountOf(value: unknown): string | null {
   return v.amount !== undefined ? String(v.amount) : null;
 }
 
+// The message plus the reasons underneath it (App Kit wraps Circle's and Arc's
+// answers several levels deep: the useful part, like a Gas Station limit, is inside)
 function errorText(err: unknown): string {
   const detail = (err as { response?: { data?: unknown } }).response?.data;
-  const base = err instanceof Error ? err.message : String(err);
-  return (detail ? `${base} ${JSON.stringify(detail)}` : base).slice(0, 500);
+  const parts = [err instanceof Error ? err.message : String(err)];
+  if (detail) parts.push(JSON.stringify(detail));
+  let e = (err as { cause?: { trace?: { rawError?: unknown } } }).cause?.trace?.rawError ?? (err as { cause?: unknown }).cause;
+  for (let i = 0; e && i < 5; i++) {
+    const x = e as { details?: unknown; shortMessage?: unknown; message?: unknown; cause?: unknown };
+    const piece = String(x.details ?? x.shortMessage ?? x.message ?? "");
+    if (piece && !parts.some((p) => p.includes(piece))) parts.push(piece);
+    e = x.cause;
+  }
+  return parts.join(" | ").replace(/0x[0-9a-fA-F]{200,}/g, "0x...").slice(0, 800);
 }
 
 function friendly(message: string): string {
+  if (/PAYMASTER_POLICY|exceed.*policy/i.test(message)) {
+    return "Swaps are busy right now. Nothing was taken. Please try again later.";
+  }
   if (/liquidity|route|revert|INSUFFICIENT_OUTPUT|slippage|stop ?limit/i.test(message)) {
     return "The price moved or there was not enough liquidity, so the swap was cancelled. Nothing was taken. Please try again, or try a smaller amount.";
   }

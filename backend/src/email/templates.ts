@@ -90,7 +90,7 @@ export function resetPasswordEmail(name: string, url: string) {
 }
 
 // A short email with optional big code or button. Used by the admin dashboard.
-export function noticeEmail(p: { subject: string; lines: string[]; code?: string; button?: { label: string; url: string }; footer?: string }) {
+export function noticeEmail(p: { subject: string; lines: string[]; code?: string; button?: { label: string; url: string }; footer?: string; brand?: string }) {
   const text = [
     ...p.lines,
     ...(p.code ? ["", p.code] : []),
@@ -116,7 +116,7 @@ export function noticeEmail(p: { subject: string; lines: string[]; code?: string
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
       <tr><td align="center">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:12px;padding:32px;">
-          <tr><td style="font-size:18px;font-weight:bold;color:#047857;">dataonchain admin</td></tr>
+          <tr><td style="font-size:18px;font-weight:bold;color:#047857;">${escapeHtml(p.brand ?? "dataonchain admin")}</td></tr>
           ${paragraphs}${code}${button}${footer}
         </table>
       </td></tr>

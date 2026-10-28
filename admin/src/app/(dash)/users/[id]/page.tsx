@@ -16,6 +16,7 @@ type Detail = {
   orders: { id: string; reference: string; status: string; serviceType: string; network: string; planName: string | null; phone: string; ngnAmount: number; usdcAmount: string; createdAt: string }[];
   bridges: { id: string; status: string; from: string; to: string; amount: string; recipientAddress: string; createdAt: string }[];
   swaps: { id: string; status: string; tokenIn: string; tokenOut: string; amountIn: string; amountOut: string | null; txUrl: string | null; createdAt: string }[];
+  sends?: { id: string; status: string; token: string; amount: string; toAddress: string; txUrl: string | null; error: string | null; createdAt: string }[];
   sweeps: { id: string; status: string; amount: string; toAddress: string; txUrl: string | null; createdAt: string }[];
   activity: { id: string; actorType: string; action: string; details: unknown; at: string }[];
 };
@@ -152,6 +153,24 @@ export default function UserPage() {
           </Table>
         </Card>
       </div>
+
+      {data.sends && data.sends.length ? (
+        <Card title="Sends to other wallets" className="mt-6">
+          <Table head={["Amount", "To", "Status", "Date"]}>
+            {data.sends.map((s) => (
+              <tr key={s.id}>
+                <Td><ExtLink href={s.txUrl}>{token(s.amount)} {s.token}</ExtLink></Td>
+                <Td className="font-mono text-xs">{short(s.toAddress)}</Td>
+                <Td>
+                  <Badge status={s.status} />
+                  {s.error ? <span className="mt-1 block max-w-xs text-xs text-zinc-500">{s.error}</span> : null}
+                </Td>
+                <Td className="whitespace-nowrap text-zinc-500">{when(s.createdAt)}</Td>
+              </tr>
+            ))}
+          </Table>
+        </Card>
+      ) : null}
 
       {data.sweeps.length ? (
         <Card title="Wallet upgrade sweeps" className="mt-6">

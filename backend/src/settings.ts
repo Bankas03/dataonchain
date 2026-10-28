@@ -5,7 +5,7 @@ import { db } from "./db";
 import { appSettings } from "./db/schema";
 import { env } from "./env";
 
-export const PAUSE_KEYS = ["purchasesPaused", "bridgePaused", "swapPaused"] as const;
+export const PAUSE_KEYS = ["purchasesPaused", "bridgePaused", "swapPaused", "sendPaused"] as const;
 export type PauseKey = (typeof PAUSE_KEYS)[number];
 export type Pauses = Record<PauseKey, boolean>;
 
@@ -13,12 +13,14 @@ const TESTNET_MESSAGES: Record<PauseKey, string> = {
   purchasesPaused: "Buying airtime and data is paused for a short maintenance. Please try again later.",
   bridgePaused: "Sending to other networks is paused for a short maintenance. Please try again later.",
   swapPaused: "Swaps are paused for a short maintenance. Please try again later.",
+  sendPaused: "Sending to other wallets is paused for a short maintenance. Please try again later.",
 };
 // On mainnet a paused part is one that has not opened yet
 const MAINNET_MESSAGES: Record<PauseKey, string> = {
   purchasesPaused: "Buying airtime and data with real USDC is coming soon. Until then you can add USDC to your wallet.",
   bridgePaused: "Sending to other networks opens soon on Arc mainnet.",
   swapPaused: "Swaps open soon on Arc mainnet.",
+  sendPaused: "Sending to other wallets opens soon on Arc mainnet.",
 };
 export const PAUSE_MESSAGES: Record<PauseKey, string> = env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") ? TESTNET_MESSAGES : MAINNET_MESSAGES;
 
@@ -31,10 +33,15 @@ export function isPauseKey(value: unknown): value is PauseKey {
 
 export async function getPauses(): Promise<Pauses> {
   if (cache && Date.now() - cache.at < CACHE_MS) return cache.value;
-  const value: Pauses = { purchasesPaused: false, bridgePaused: false, swapPaused: false };
+  // A switch never set is open, except sending to other wallets on mainnet:
+  // it starts paused until the admin opens it after a live check
+  const value: Pauses = { purchasesPaused: false, bridgePaused: false, swapPaused: false, sendPaused: !env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") };
   try {
     const rows = await db.select().from(appSettings);
-    for (const key of PAUSE_KEYS) value[key] = rows.find((r) => r.key === key)?.value === "true";
+    for (const key of PAUSE_KEYS) {
+      const row = rows.find((r) => r.key === key);
+      if (row) value[key] = row.value === "true";
+    }
   } catch (err) {
     // Never block users because the settings could not be read
     console.error("[settings] could not read switches:", err instanceof Error ? err.message : err);
@@ -48,7 +55,7 @@ export async function getPauses(): Promise<Pauses> {
 export async function pauseNotices(): Promise<string[]> {
   const p = await getPauses();
   // Bridge and swaps only matter where they are switched on
-  const on: Record<PauseKey, boolean> = { purchasesPaused: true, bridgePaused: env.BRIDGE_ENABLED, swapPaused: env.SWAP_ENABLED };
+  const on: Record<PauseKey, boolean> = { purchasesPaused: true, bridgePaused: env.BRIDGE_ENABLED, swapPaused: env.SWAP_ENABLED, sendPaused: true };
   return PAUSE_KEYS.filter((k) => p[k] && on[k]).map((k) => PAUSE_MESSAGES[k]);
 }
 

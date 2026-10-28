@@ -29,7 +29,7 @@ export default function TermsPage() {
       <p>dataonchain runs on Arc mainnet with real USDC. Features open step by step:</p>
       <ul>
         <li>Buying airtime and data opens after our company registration and a live provider are in place.</li>
-        <li>Sending to other networks and swaps open when we announce them on the website.</li>
+        <li>Sending to other networks, sending to other wallets and swaps open when we announce them on the website.</li>
         <li>Limits apply while we launch, and features, limits and fees may change. We may pause a feature for maintenance or safety.</li>
       </ul>
 
@@ -67,12 +67,15 @@ export default function TermsPage() {
         <li>If delivery fails, you are refunded as set out in our Refund Policy.</li>
       </ul>
 
-      <h2>7. Sending to other networks</h2>
+      <h2>7. Sending to other networks and wallets</h2>
       <ul>
         <li>You can send USDC from Arc to your own wallets on the supported networks, or to approved providers, through Circle Gateway. You can also bring it back to Arc.</li>
         <li>Circle charges a fee for each transfer, shown before you confirm. We also charge a small transfer fee (currently 0.10 USDC), shown before you confirm and taken from your Arc wallet only when the transfer completes. It covers the network fees we pay for you.</li>
         <li>Transfers can take up to about 20 minutes. Limits apply per transfer and per day, and you can have one transfer in progress at a time.</li>
         <li>We may refuse or pause transfers, for example when Circle&apos;s fee is unusually high or for security reasons.</li>
+        <li>You can also send USDC, EURC or cirBTC from your wallet to any wallet address on Arc. You confirm each send with a code we email to you. Never share that code with anyone.</li>
+        <li>Sends on a blockchain are final and cannot be reversed. You are responsible for the address you enter and for checking that it can receive the token on Arc. Funds sent to a wrong address, or to an exchange or wallet that does not support Arc, are lost and we cannot recover them.</li>
+        <li>Limits apply per send and per day. We may refuse, delay or pause a send for security reasons or where the law requires it.</li>
       </ul>
 
       <h2>8. Swaps</h2>

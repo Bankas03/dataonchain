@@ -13,6 +13,7 @@ import {
   orders,
   payments,
   refunds,
+  sends,
   swaps,
   users,
   vtuTransactions,
@@ -21,9 +22,10 @@ import {
   BRIDGE_STATUSES,
   REFUND_STATUSES,
   SWAP_STATUSES,
+  SEND_STATUSES,
 } from "../db/schema";
 import { env } from "../env";
-import { bridgeChains, chainByKey, type BridgeChain } from "../bridge/chains";
+import { chainByKey, openChains, type BridgeChain } from "../bridge/chains";
 import { findStuck } from "../bridge/monitor";
 import { listChainWallets } from "../bridge/wallets";
 import { tokenBalances } from "../swap/service";
@@ -355,6 +357,12 @@ export async function getUser(id: string) {
     .where(and(eq(orders.userId, id), notInArray(orders.status, ["QUOTED", "EXPIRED"])));
   const bridgeRows = await db.select().from(bridgeTransfers).where(eq(bridgeTransfers.userId, id)).orderBy(desc(bridgeTransfers.createdAt)).limit(20);
   const swapRows = await db.select().from(swaps).where(eq(swaps.userId, id)).orderBy(desc(swaps.createdAt)).limit(20);
+  const sendRows = await db
+    .select()
+    .from(sends)
+    .where(and(eq(sends.userId, id), notInArray(sends.status, ["AWAITING_CODE"])))
+    .orderBy(desc(sends.createdAt))
+    .limit(20);
   const sweepRows = await db.select().from(walletSweeps).where(eq(walletSweeps.userId, id)).orderBy(desc(walletSweeps.createdAt)).limit(10);
   const activity = await db
     .select()
@@ -397,6 +405,7 @@ export async function getUser(id: string) {
     })),
     bridges: bridgeRows.map(bridgeRow),
     swaps: swapRows.map(swapRow),
+    sends: sendRows.map(sendRow),
     sweeps: sweepRows.map((s) => ({
       id: s.id,
       status: s.status,
@@ -674,6 +683,44 @@ export async function getBridge(id: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Sends to other wallets on Arc
+// ---------------------------------------------------------------------------
+function sendRow(s: typeof sends.$inferSelect) {
+  return {
+    id: s.id,
+    status: s.status,
+    token: s.token,
+    amount: s.amount,
+    toAddress: s.toAddress,
+    txUrl: arcTx(s.txHash),
+    error: s.error,
+    createdAt: s.createdAt.toISOString(),
+  };
+}
+
+export async function listSendsAdmin(status: string | undefined, page: number) {
+  const where =
+    status && (SEND_STATUSES as readonly string[]).includes(status)
+      ? eq(sends.status, status as (typeof SEND_STATUSES)[number])
+      : notInArray(sends.status, ["AWAITING_CODE"]);
+  const [total] = await db.select({ n: count() }).from(sends).where(where);
+  const rows = await db
+    .select({ s: sends, email: users.email })
+    .from(sends)
+    .innerJoin(users, eq(sends.userId, users.id))
+    .where(where)
+    .orderBy(desc(sends.createdAt))
+    .limit(PAGE_SIZE)
+    .offset((page - 1) * PAGE_SIZE);
+  return {
+    total: total?.n ?? 0,
+    page,
+    pageSize: PAGE_SIZE,
+    sends: rows.map(({ s, email }) => ({ ...sendRow(s), userId: s.userId, email })),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Swaps
 // ---------------------------------------------------------------------------
 function swapRow(s: typeof swaps.$inferSelect) {
@@ -777,7 +824,7 @@ export async function settingsView() {
       treasuryUrl: arcAddress(env.TREASURY_ADDRESS),
       bridgeEnabled: env.BRIDGE_ENABLED,
       bridgeLimits: { min: env.BRIDGE_MIN_USDC, max: env.BRIDGE_MAX_USDC, daily: env.BRIDGE_DAILY_USDC, maxFee: env.BRIDGE_MAX_FEE_USDC },
-      bridgeChains: env.BRIDGE_ENABLED ? bridgeChains().map((c) => c.label) : [],
+      bridgeChains: env.BRIDGE_ENABLED ? openChains().map((c) => c.label) : [],
       swapEnabled: env.SWAP_ENABLED,
       swapFeePercent: env.SWAP_FEE_BPS / 100,
       swapSlippagePercent: env.SWAP_SLIPPAGE_BPS / 100,

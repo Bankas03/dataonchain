@@ -34,7 +34,7 @@ export type Tone = "good" | "bad" | "warn" | "wait" | "plain";
 const GOOD = ["FULFILLED", "REFUNDED", "COMPLETE", "CONFIRMED", "DELIVERED", "active", "MINTED"];
 const BAD = ["FAILED", "MISMATCH", "suspended", "DENIED"];
 const WARN = ["FLAGGED", "REFUND_PENDING", "UNKNOWN"];
-const PLAIN = ["QUOTED", "EXPIRED"];
+const PLAIN = ["QUOTED", "EXPIRED", "CANCELLED"];
 
 export function toneOf(status: string): Tone {
   if (GOOD.includes(status)) return "good";

@@ -21,6 +21,7 @@ const EXPECTED_TABLES = [
   "orders",
   "payments",
   "refunds",
+  "sends",
   "sessions",
   "swaps",
   "treasury_movements",

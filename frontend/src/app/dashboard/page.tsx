@@ -23,7 +23,7 @@ export default function DashboardPage() {
   useEffect(() => {
     fetch("/api/status")
       .then((r) => r.json())
-      .then((s: { bridge?: boolean; swap?: boolean; network?: string; notices?: string[]; paused?: { purchasesPaused?: boolean; bridgePaused?: boolean; swapPaused?: boolean } }) => {
+      .then((s: { bridge?: boolean; swap?: boolean; network?: string; notices?: string[]; paused?: { purchasesPaused?: boolean; bridgePaused?: boolean; swapPaused?: boolean; sendPaused?: boolean } }) => {
         setBridgeOn(Boolean(s.bridge));
         setSwapOn(Boolean(s.swap));
         setMainnet(s.network === "mainnet");
@@ -33,6 +33,7 @@ export default function DashboardPage() {
         if (s.paused?.purchasesPaused) parts.push("buying airtime and data");
         if (s.paused?.bridgePaused && s.bridge) parts.push("sending to other networks");
         if (s.paused?.swapPaused && s.swap) parts.push("swaps");
+        if (s.paused?.sendPaused) parts.push("sending to other wallets");
         setPaused(parts);
       })
       .catch(() => setBridgeOn(false));
@@ -117,6 +118,12 @@ export default function DashboardPage() {
               Buy airtime or data
             </Link>
           )}
+          <Link
+            href="/send"
+            className="inline-block rounded-lg border border-emerald-700 px-4 py-2.5 font-medium text-emerald-800 hover:bg-emerald-50 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-950"
+          >
+            Send to a wallet
+          </Link>
           {swapOn ? (
             <Link
               href="/swap"

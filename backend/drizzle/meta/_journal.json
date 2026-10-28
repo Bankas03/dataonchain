@@ -57,6 +57,13 @@
       "when": 1793215924623,
       "tag": "0007_bridge_network_fee",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793219887649,
+      "tag": "0008_sends",
+      "breakpoints": true
     }
   ]
 }

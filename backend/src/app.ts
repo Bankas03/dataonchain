@@ -11,6 +11,7 @@ import { isNetwork, listDataPlans } from "./catalog/plans";
 import { QuoteError, createQuote, getQuote } from "./pricing/quote";
 import { NETWORK_NAMES, ensureUserWallet, previousWallet } from "./wallets/service";
 import { SwapError, TOKENS, executeSwap, listSwaps, quoteSwap, tokenBalances } from "./swap/service";
+import { SendError, confirmSend, getSendView, listSends, sendInfo, startSend } from "./send/service";
 import { getPauses, pauseNotices, pausedMessage } from "./settings";
 import { adminApp } from "./admin/routes";
 import { BridgeUserError, bridgeBalance, chainBalances, getBridgeView, listBridges, listDestinations, quoteBridge, returnToArc, startBridge } from "./bridge/user";
@@ -42,7 +43,7 @@ app.get("/health", async (c) => {
 });
 
 // Quick check that the API (and the website's /api pass through) is up.
-app.get("/api/status", async (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridgeMonitor: true, swapCode: true, admin: true, auditFixes: true, accountTools: true, mainnetReady: true, networkFee: true, adminConfigured: Boolean(env.ADMIN_EMAIL), bridge: env.BRIDGE_ENABLED, swap: env.SWAP_ENABLED, paused: await getPauses(), notices: await pauseNotices(), network: env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") ? "testnet" : "mainnet" }));
+app.get("/api/status", async (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridgeMonitor: true, swapCode: true, admin: true, auditFixes: true, accountTools: true, mainnetReady: true, networkFee: true, sendReady: true, adminConfigured: Boolean(env.ADMIN_EMAIL), bridge: env.BRIDGE_ENABLED, swap: env.SWAP_ENABLED, paused: await getPauses(), notices: await pauseNotices(), network: env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") ? "testnet" : "mainnet" }));
 
 // Admin dashboard API (its own login; see src/admin)
 app.route("/api/admin", adminApp);
@@ -312,6 +313,57 @@ app.post("/api/swap", requireAuth, async (c) => {
 app.get("/api/swaps", requireAuth, async (c) => {
   const { user } = c.get("auth");
   return c.json({ swaps: await listSwaps(user.id) });
+});
+
+// ---------------------------------------------------------------------------
+// Send USDC, EURC or cirBTC to another wallet on Arc, confirmed with an emailed code
+// ---------------------------------------------------------------------------
+function sendErrors(err: unknown, c: Context) {
+  if (err instanceof SendError) return c.json({ error: err.message }, err.status);
+  throw err;
+}
+
+app.get("/api/send/info", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  return c.json({ ...(await sendInfo(user.id)), paused: await pausedMessage("sendPaused", user.email) });
+});
+
+app.post("/api/send", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  if (!user.emailVerified) return c.json({ error: "Please confirm your email first" }, 403);
+  const paused = await pausedMessage("sendPaused", user.email);
+  if (paused) return c.json({ error: paused }, 503);
+  const body = (await c.req.json().catch(() => ({}))) as { token?: unknown; amount?: unknown; toAddress?: unknown; confirmNetwork?: unknown };
+  try {
+    return c.json({ send: await startSend({ id: user.id, email: user.email, name: user.name }, body) });
+  } catch (err) {
+    return sendErrors(err, c);
+  }
+});
+
+app.post("/api/send/:id/confirm", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  if (!user.emailVerified) return c.json({ error: "Please confirm your email first" }, 403);
+  const paused = await pausedMessage("sendPaused", user.email);
+  if (paused) return c.json({ error: paused }, 503);
+  const body = (await c.req.json().catch(() => ({}))) as { code?: unknown };
+  try {
+    return c.json({ send: await confirmSend(user.id, c.req.param("id"), body.code) });
+  } catch (err) {
+    return sendErrors(err, c);
+  }
+});
+
+app.get("/api/sends", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  return c.json({ sends: await listSends(user.id) });
+});
+
+app.get("/api/sends/:id", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  const send = await getSendView(user.id, c.req.param("id"));
+  if (!send) return c.json({ error: "Send not found" }, 404);
+  return c.json({ send });
 });
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));

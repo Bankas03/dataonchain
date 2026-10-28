@@ -10,7 +10,7 @@ type Overview = {
   generatedAt: string;
   testnet: boolean;
   vtpassSandbox: boolean;
-  pauses: { purchasesPaused: boolean; bridgePaused: boolean; swapPaused: boolean };
+  pauses: { purchasesPaused: boolean; bridgePaused: boolean; swapPaused: boolean; sendPaused?: boolean };
   users: { total: number; verified: number; suspended: number; new1: number; new7: number; new30: number };
   volume: {
     orders: Window;
@@ -39,6 +39,7 @@ export default function OverviewPage() {
     data.pauses.purchasesPaused ? "Purchases" : null,
     data.pauses.bridgePaused ? "Bridge" : null,
     data.pauses.swapPaused ? "Swaps" : null,
+    data.pauses.sendPaused ? "Sends" : null,
   ].filter(Boolean);
   const maxUsdc = Math.max(1, ...data.days.map((d) => Number(d.usdc)));
   const refundsDone = data.refunds.CONFIRMED;

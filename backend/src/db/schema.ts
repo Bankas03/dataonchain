@@ -56,6 +56,8 @@ export const SWEEP_STATUSES = ["PENDING", "SENT", "CONFIRMED", "FAILED"] as cons
 // Token swaps on Arc (Circle App Kit): USDC, EURC, cirBTC
 export const SWAP_TOKENS = ["USDC", "EURC", "cirBTC"] as const;
 export const SWAP_STATUSES = ["PENDING", "COMPLETE", "FAILED", "UNKNOWN"] as const;
+// Sends to another wallet on Arc: confirmed with an emailed code first
+export const SEND_STATUSES = ["AWAITING_CODE", "SENDING", "SENT", "COMPLETE", "FAILED", "CANCELLED"] as const;
 // Crosschain transfers through Circle Gateway (see src/bridge)
 export const BRIDGE_DIRECTIONS = ["OUT", "IN"] as const;
 export const BRIDGE_STATUSES = [
@@ -583,6 +585,38 @@ export const swaps = sqliteTable(
     updatedAt: updatedAt(),
   },
   (t) => [index("swaps_user_idx").on(t.userId), index("swaps_status_idx").on(t.status)],
+);
+
+// ---------------------------------------------------------------------------
+// Sends: USDC, EURC or cirBTC from a user's Arc wallet to any Arc address.
+// The user confirms with a 6 digit code emailed to them (stored only as a hash).
+// open_key holds the user id while a send is open: one at a time per user.
+// The Circle transfer's idempotency key comes from the send id, so a retry can
+// never send twice.
+// ---------------------------------------------------------------------------
+export const sends = sqliteTable(
+  "sends",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    walletAddress: text("wallet_address").notNull(),
+    token: text("token", { enum: SWAP_TOKENS }).notNull(),
+    amount: text("amount").notNull(), // decimal string in token units
+    toAddress: text("to_address").notNull(),
+    status: text("status", { enum: SEND_STATUSES }).notNull().default("AWAITING_CODE"),
+    codeHash: text("code_hash"),
+    codeExpiresAt: integer("code_expires_at", { mode: "timestamp_ms" }),
+    codeAttempts: integer("code_attempts").notNull().default(0),
+    circleTransactionId: text("circle_transaction_id").unique(),
+    txHash: text("tx_hash"),
+    error: text("error"),
+    openKey: text("open_key").unique(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("sends_user_idx").on(t.userId), index("sends_status_idx").on(t.status)],
 );
 
 // ---------------------------------------------------------------------------

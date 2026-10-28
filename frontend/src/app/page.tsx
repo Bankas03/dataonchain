@@ -124,7 +124,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Can I send USDC to any wallet address?",
-    a: "Not yet. For safety, USDC can only go to your own wallets on the supported networks or to approved providers. Sending to any address you choose may come later.",
+    a: "Yes, on Arc. Use Send to a wallet on your dashboard to send USDC, EURC or cirBTC to any wallet address on Arc. You confirm each send with a code we email you, and we pay the gas. At launch you can send up to 50 USDC or EURC per send and 100 per day. Sends cannot be reversed, so check the address, and only send to an exchange or wallet that supports Arc. To reach a wallet on Base, use Send to another network.",
   },
   {
     q: "How do swaps work?",
