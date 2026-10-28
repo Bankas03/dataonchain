@@ -61,12 +61,13 @@ const MILESTONES = [
   { title: "Swaps on Arc", text: "USDC, EURC and cirBTC, with a fee shown upfront and a minimum you are guaranteed." },
   { title: "Admin dashboard and security review", text: "Full operations dashboard, a code audit, and the fixes that came from it, including password reset." },
   { title: "Public testing on Arc Testnet", text: "Early testers using the platform and shaping it with their feedback." },
-  { title: "Live on Arc mainnet", text: "Real USDC wallets on Arc mainnet for every user, with sending to other networks and swaps ready to open." },
+  { title: "Live on Arc mainnet", text: "Real USDC wallets on Arc mainnet for every user." },
+  { title: "Bridge, swaps and sends live on mainnet", text: "Everyone can now move USDC between Arc and Base, swap USDC, EURC and cirBTC, and send to any Arc wallet with an emailed code." },
 ];
 
 const ROADMAP = [
   { title: "Company registration", text: "Registering dataonchain with the Corporate Affairs Commission (CAC) in Nigeria.", status: "In progress" },
-  { title: "Bridge and swaps on Arc mainnet", text: "Deployed on Arc mainnet and opening to everyone soon.", status: "In progress" },
+  { title: "Bridge, swaps and send to another wallet", text: "Live on Arc mainnet for everyone: USDC to Base and back, swaps between USDC, EURC and cirBTC, and sends to any Arc wallet.", status: "Live" },
   { title: "Live airtime and data delivery", text: "Connecting a live VTU provider once registration is complete.", status: "Planned" },
   { title: "Full launch on Arc mainnet", text: "Real USDC payments for airtime and data, for everyone in Nigeria.", status: "Planned" },
   { title: "Easier ways to add and cash out USDC", text: "Simple on and off ramps between naira and USDC.", status: "Planned" },
@@ -80,7 +81,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Is dataonchain live?",
-    a: "Yes, on Arc mainnet, with real USDC. You can sign up, get your wallet and add USDC today. Sending to Base and swaps open in stages (your dashboard shows what is open), and buying airtime and data opens after our company registration and a live provider are in place.",
+    a: "Yes, on Arc mainnet, with real USDC. You can sign up, get your wallet, add USDC, send it to Base and back, swap between USDC, EURC and cirBTC, and send to any Arc wallet today. Buying airtime and data opens after our company registration and a live provider are in place.",
   },
   {
     q: "How do I add USDC?",
@@ -192,7 +193,7 @@ export default function Home() {
       <section className="mx-auto max-w-5xl px-4 pb-16 pt-16 sm:pt-24">
         <p className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
           <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-          Live on Arc mainnet · buying airtime and data opens soon
+          Live on Arc mainnet · send, swap and bridge are open · airtime and data soon
         </p>
         <h1 className="mt-6 max-w-3xl text-4xl font-semibold tracking-tight text-zinc-900 sm:text-6xl dark:text-zinc-50">
           Buy airtime and data with USDC.
@@ -317,7 +318,9 @@ export default function Home() {
               <li key={r.title} className="relative">
                 <span
                   className={`absolute -left-[41px] top-1 h-4 w-4 rounded-full border-2 ${
-                    r.status === "In progress"
+                    r.status === "Live"
+                      ? "border-emerald-600 bg-emerald-500"
+                      : r.status === "In progress"
                       ? "border-amber-500 bg-amber-400"
                       : r.status === "Next"
                         ? "border-emerald-600 bg-white dark:bg-zinc-900"
@@ -328,7 +331,9 @@ export default function Home() {
                   <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{r.title}</h3>
                   <span
                     className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      r.status === "In progress"
+                      r.status === "Live"
+                        ? "bg-emerald-600 text-white dark:bg-emerald-500 dark:text-emerald-950"
+                        : r.status === "In progress"
                         ? "bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200"
                         : r.status === "Next"
                           ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
@@ -369,8 +374,8 @@ export default function Home() {
           <div className="rounded-2xl bg-emerald-800 px-6 py-12 text-center sm:px-12">
             <h2 className="text-3xl font-semibold tracking-tight text-white">Get started</h2>
             <p className="mx-auto mt-3 max-w-xl text-emerald-100">
-              Create an account and get your USDC wallet on Arc in a minute. Sending to Base and swaps open in stages,
-              and buying airtime and data follows.
+              Create an account and get your USDC wallet on Arc in a minute. Send, swap and move USDC to Base today;
+              buying airtime and data follows.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Link href="/signup" className="rounded-lg bg-white px-5 py-3 font-medium text-emerald-900 hover:bg-emerald-50">
