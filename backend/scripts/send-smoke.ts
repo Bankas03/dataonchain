@@ -102,22 +102,31 @@ async function main() {
     check(old?.status === "CANCELLED" && second?.status === "AWAITING_CODE", "a new send replaces the one waiting for its code");
     check(second?.codeSentTo?.includes("***") === true, "the page shows where the code went (hidden)", second?.codeSentTo);
 
+    // Many wrong codes sent at the same moment still count: the send is cancelled
+    const secondCode = lastCode(email);
+    const badCode = secondCode === "000000" ? "111111" : "000000";
+    await Promise.allSettled(Array.from({ length: 8 }, () => confirmSend(userId, second!.id, badCode)));
+    const [raced] = await db.select().from(sends).where(eq(sends.id, second!.id));
+    check(raced?.status === "CANCELLED", "8 wrong codes at once cancel the send (the limit is 5)", raced?.status);
+    await refused("the right code no longer works after that", () => confirmSend(userId, second!.id, secondCode));
+
+    const third = await startSend(user, ok);
     const code = lastCode(email);
     const wrong = code === "000000" ? "111111" : "000000";
     try {
-      await confirmSend(userId, second!.id, wrong);
+      await confirmSend(userId, third!.id, wrong);
       check(false, "a wrong code is refused");
     } catch (err) {
       check(err instanceof SendError && err.status === 401 && /tries left/.test(err.message), "a wrong code is refused");
     }
-    let view = await confirmSend(userId, second!.id, code);
+    let view = await confirmSend(userId, third!.id, code);
     for (let i = 0; i < 30 && view && ["SENDING", "SENT"].includes(view.status); i++) {
       await sleep(3_000);
       await advanceSends();
-      view = await getSendView(userId, second!.id);
+      view = await getSendView(userId, third!.id);
     }
     check(view?.status === "COMPLETE" && Boolean(view.explorerUrl), `0.2 USDC sent (${view?.explorerUrl})`, view);
-    await refused("the same code cannot be used twice", () => confirmSend(userId, second!.id, code));
+    await refused("the same code cannot be used twice", () => confirmSend(userId, third!.id, code));
 
     let after = await usdcOf(wallet.circleWalletId);
     for (let i = 0; i < 20 && after > before - 0.2; i++) {

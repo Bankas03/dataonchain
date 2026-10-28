@@ -146,7 +146,9 @@ export default function BridgeTransferPage() {
                           ? "(paid)"
                           : t.networkFeeStatus === "FAILED"
                             ? "(not charged)"
-                            : "(taken when the transfer completes)"}
+                            : t.status === "COMPLETE"
+                              ? "(being taken now)"
+                              : "(taken when the transfer completes)"}
                     </span>
                   </dd>
                 </>

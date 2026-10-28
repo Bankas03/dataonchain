@@ -75,7 +75,17 @@ async function sendFee(t: Transfer) {
     idempotencyKey: uuidFrom(`bridge:${t.id}:network-fee`),
     refId: `bridge-fee-${t.id}`,
   };
-  const sent = await circle.createTransaction(input as unknown as Parameters<typeof circle.createTransaction>[0]);
+  let sent;
+  try {
+    sent = await circle.createTransaction(input as unknown as Parameters<typeof circle.createTransaction>[0]);
+  } catch (err) {
+    // Retried with the same key on every worker run; reported after 48 hours
+    if (Date.now() - t.createdAt.getTime() > GIVE_UP_MS) {
+      await giveUp(t, `Circle refused the fee transfer: ${err instanceof Error ? err.message : String(err)}`.slice(0, 300));
+      return;
+    }
+    throw err;
+  }
   const txId = sent.data?.id;
   if (!txId) throw new Error("Circle did not accept the network fee transfer");
   await db

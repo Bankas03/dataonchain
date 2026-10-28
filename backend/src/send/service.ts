@@ -16,7 +16,7 @@
 //     token contract (a common mistake that loses the funds)
 //   - an email receipt after every completed send
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
-import { and, desc, eq, gte, inArray, lt, notInArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, notInArray, sql } from "drizzle-orm";
 import { circle } from "../circle/client";
 import { db } from "../db";
 import { SWAP_TOKENS, auditLogs, ledgerEntries, sends, users } from "../db/schema";
@@ -230,16 +230,25 @@ export async function confirmSend(userId: string, id: string, codeInput: unknown
     await db.update(sends).set({ status: "CANCELLED", codeHash: null, openKey: null, error: "code expired" }).where(and(eq(sends.id, s.id), eq(sends.status, "AWAITING_CODE")));
     throw new SendError("The code expired. Nothing was sent. Please start again.", 409);
   }
+  // Every try is counted in the database first, in one step, so many tries sent
+  // at the same moment cannot get past the limit of 5
+  const [tried] = await db
+    .update(sends)
+    .set({ codeAttempts: sql`${sends.codeAttempts} + 1` })
+    .where(and(eq(sends.id, s.id), eq(sends.status, "AWAITING_CODE"), lt(sends.codeAttempts, MAX_CODE_ATTEMPTS)))
+    .returning();
+  if (!tried) {
+    await db.update(sends).set({ status: "CANCELLED", codeHash: null, openKey: null, error: "too many wrong codes" }).where(and(eq(sends.id, s.id), eq(sends.status, "AWAITING_CODE")));
+    throw new SendError("Too many wrong codes. Nothing was sent. Please start again.", 401);
+  }
   const code = typeof codeInput === "string" ? codeInput.replace(/\s/g, "") : "";
   if (!/^\d{6}$/.test(code) || !sameHex(codeHash(s.id, code), s.codeHash)) {
-    const attempts = s.codeAttempts + 1;
-    if (attempts >= MAX_CODE_ATTEMPTS) {
-      await db.update(sends).set({ status: "CANCELLED", codeHash: null, openKey: null, codeAttempts: attempts, error: "too many wrong codes" }).where(eq(sends.id, s.id));
-      await audit("send.code_failed", s, { attempts });
+    if (tried.codeAttempts >= MAX_CODE_ATTEMPTS) {
+      await db.update(sends).set({ status: "CANCELLED", codeHash: null, openKey: null, error: "too many wrong codes" }).where(and(eq(sends.id, s.id), eq(sends.status, "AWAITING_CODE")));
+      await audit("send.code_failed", s, { attempts: tried.codeAttempts });
       throw new SendError("Too many wrong codes. Nothing was sent. Please start again.", 401);
     }
-    await db.update(sends).set({ codeAttempts: attempts }).where(eq(sends.id, s.id));
-    throw new SendError(`Wrong code. ${MAX_CODE_ATTEMPTS - attempts} tries left.`, 401);
+    throw new SendError(`Wrong code. ${MAX_CODE_ATTEMPTS - tried.codeAttempts} tries left.`, 401);
   }
 
   // The balance may have changed since the code was sent

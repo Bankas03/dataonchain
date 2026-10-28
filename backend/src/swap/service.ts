@@ -255,8 +255,12 @@ export async function executeSwap(userId: string, body: Params) {
   } catch (err) {
     const message = errorText(err);
     // App Kit reports failures before or during the transaction. A transaction
-    // hash in the error means something was sent: mark UNKNOWN to be checked.
-    const sent = /0x[0-9a-fA-F]{64}/.exec(message)?.[0] ?? null;
+    // hash in the error itself means something was sent: mark UNKNOWN to be
+    // checked. Only the top message is searched, and only a whole 64 character
+    // hash counts: the reasons underneath quote transaction data (long hex that
+    // was never sent), which must not turn a refused swap into an unclear one.
+    const top = `${err instanceof Error ? err.message : String(err)} ${JSON.stringify((err as { response?: { data?: unknown } }).response?.data ?? "")}`;
+    const sent = /(?<![0-9a-fA-F])0x[0-9a-fA-F]{64}(?![0-9a-fA-F])/.exec(top)?.[0] ?? null;
     await db
       .update(swaps)
       .set({ status: sent ? "UNKNOWN" : "FAILED", error: message, txHash: sent, openKey: null })
