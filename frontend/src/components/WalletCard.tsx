@@ -10,6 +10,7 @@ type WalletResponse = {
   bridgeBalance?: string | null;
   tokens?: { EURC: string; cirBTC: string } | null;
   ngnPerUsdc?: number | null;
+  networks?: { chain: string; label: string; usdc: string | null }[];
 };
 
 // The fine wavy lines printed on banknotes, drawn once as a background
@@ -36,6 +37,12 @@ function split(amount: string | null): { whole: string; cents: string } | null {
   const text = n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 });
   const [whole, cents = "00"] = text.split(".");
   return { whole: whole ?? "0", cents };
+}
+
+function toMicro(v: string): number {
+  const m = /^(\d+)(?:\.(\d+))?$/.exec(v.trim());
+  if (!m) return 0;
+  return Number(m[1]) * 1_000_000 + Number((m[2] ?? "").padEnd(6, "0").slice(0, 6));
 }
 
 const tokenText = (v: string, max: number) => Number(v).toLocaleString("en-US", { maximumFractionDigits: max });
@@ -79,11 +86,14 @@ export function WalletCard() {
     setShowQr((v) => !v);
   }
 
-  const amount = split(data?.balance.usdc ?? null);
-  const naira =
-    data?.ngnPerUsdc && data.balance.usdc !== null
-      ? Math.floor(Number(data.balance.usdc) * data.ngnPerUsdc).toLocaleString("en-NG")
-      : null;
+  // The total across networks (Arc plus Base), in micro USDC so it adds up exactly
+  const networks = data?.networks?.length ? data.networks : data ? [{ chain: "arc", label: data.wallet.network, usdc: data.balance.usdc }] : [];
+  const known = networks.filter((n) => n.usdc !== null);
+  const totalMicro = known.reduce((sum, n) => sum + toMicro(n.usdc!), 0);
+  const total = known.length ? (totalMicro / 1_000_000).toFixed(6) : null;
+  const several = networks.length > 1;
+  const amount = split(total);
+  const naira = data?.ngnPerUsdc && total !== null ? Math.floor((totalMicro / 1_000_000) * data.ngnPerUsdc).toLocaleString("en-NG") : null;
   const extras = data?.tokens
     ? [
         Number(data.tokens.EURC) > 0 ? { label: "EURC", value: tokenText(data.tokens.EURC, 6) } : null,
@@ -108,8 +118,8 @@ export function WalletCard() {
 
         <div className="relative p-6 sm:p-8">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-medium text-white/70">USDC balance</p>
-            {data ? (
+            <p className="text-sm font-medium text-white/70">{several ? "Total USDC balance" : "USDC balance"}</p>
+            {data && !several ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/90">
                 <span className="h-1.5 w-1.5 rounded-full bg-mint" aria-hidden="true" />
                 {data.wallet.network}
@@ -147,7 +157,19 @@ export function WalletCard() {
                 )}
               </p>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2">
+              {several ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {networks.map((n) => (
+                    <span key={n.chain} className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm text-white/90">
+                      <span className={`h-1.5 w-1.5 rounded-full ${n.chain === "arc" ? "bg-mint" : "bg-sky-300"}`} aria-hidden="true" />
+                      <span className="font-semibold">{n.label}</span>
+                      <span className="tabular-nums">{n.usdc === null ? "unavailable" : `${tokenText(n.usdc, 6)} USDC`}</span>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 {naira ? (
                   <span className="rounded-full bg-gold/15 px-3 py-1 text-sm font-semibold text-gold">about ₦{naira}</span>
                 ) : null}
@@ -164,7 +186,8 @@ export function WalletCard() {
               ) : null}
 
               <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
-                <code className="min-w-0 flex-1 basis-full truncate font-mono text-sm text-white/75 sm:basis-0" title={data.wallet.address}>
+                <code className="min-w-0 flex-1 basis-full truncate font-mono text-sm text-white/75 sm:basis-0" title={`Your ${data.wallet.network} address`}>
+                  {several ? <span className="mr-2 font-sans font-semibold text-white/55">{data.wallet.network}</span> : null}
                   {data.wallet.address}
                 </code>
                 <button

@@ -12,7 +12,7 @@ import { QuoteError, createQuote, getQuote } from "./pricing/quote";
 import { getCurrentRate } from "./pricing/rates";
 import { listDeposits } from "./deposits/service";
 import { isOpenChain } from "./bridge/chains";
-import { ensureChainWallet } from "./bridge/wallets";
+import { ensureChainWallet, listChainWallets } from "./bridge/wallets";
 import { NETWORK_NAMES, ensureUserWallet, previousWallet } from "./wallets/service";
 import { SwapError, TOKENS, executeSwap, listSwaps, quoteSwap, tokenBalances } from "./swap/service";
 import { SendError, confirmSend, getSendView, listSends, sendInfo, startSend } from "./send/service";
@@ -47,7 +47,7 @@ app.get("/health", async (c) => {
 });
 
 // Quick check that the API (and the website's /api pass through) is up.
-app.get("/api/status", async (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridgeMonitor: true, swapCode: true, admin: true, auditFixes: true, accountTools: true, mainnetReady: true, networkFee: true, sendReady: true, mainnetAudit: true, dashboardV2: true, deposits: true, baseSend: true, adminConfigured: Boolean(env.ADMIN_EMAIL), bridge: env.BRIDGE_ENABLED, swap: env.SWAP_ENABLED, paused: await getPauses(), notices: await pauseNotices(), network: env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") ? "testnet" : "mainnet" }));
+app.get("/api/status", async (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridgeMonitor: true, swapCode: true, admin: true, auditFixes: true, accountTools: true, mainnetReady: true, networkFee: true, sendReady: true, mainnetAudit: true, dashboardV2: true, deposits: true, baseSend: true, totalBalance: true, adminConfigured: Boolean(env.ADMIN_EMAIL), bridge: env.BRIDGE_ENABLED, swap: env.SWAP_ENABLED, paused: await getPauses(), notices: await pauseNotices(), network: env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") ? "testnet" : "mainnet" }));
 
 // Admin dashboard API (its own login; see src/admin)
 app.route("/api/admin", adminApp);
@@ -109,8 +109,30 @@ app.get("/api/wallet", requireAuth, async (c) => {
     balance: { usdc },
     tokens,
     ngnPerUsdc,
+    // USDC on each network the user has a wallet on (Arc first), for the total
+    networks: [
+      { chain: "arc", label: NETWORK_NAMES[wallet.blockchain] ?? wallet.blockchain, usdc },
+      ...(await otherNetworks(user.id)),
+    ],
   });
 });
+
+// The user's USDC on Base (and any other open network) where they have a wallet
+async function otherNetworks(userId: string): Promise<{ chain: string; label: string; usdc: string | null }[]> {
+  if (!env.BRIDGE_ENABLED) return [];
+  try {
+    const list = await listChainWallets(userId);
+    return list
+      .filter((w) => isOpenChain(w.chain))
+      .map((w) => ({
+        chain: w.chain,
+        label: w.chainLabel,
+        usdc: w.balanceMicro === null ? null : (w.balanceMicro / 1_000_000).toFixed(6).replace(/\.?0+$/, ""),
+      }));
+  } catch {
+    return [];
+  }
+}
 
 // USDC that arrived from outside dataonchain, newest first
 app.get("/api/deposits", requireAuth, async (c) => {
