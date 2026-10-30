@@ -8,8 +8,12 @@ import { authClient } from "@/lib/auth-client";
 
 type Token = "USDC" | "EURC" | "cirBTC";
 const TOKEN_LIST: Token[] = ["USDC", "EURC", "cirBTC"];
+type Chain = "arc" | "base";
 type Info = {
+  chain?: Chain;
   network: string;
+  baseOpen?: boolean;
+  tokens?: Token[];
   balances: Record<Token, string>;
   limits: Record<Token, { decimals: number; min: number; max: number; daily: number }>;
   usedToday: Record<Token, string>;
@@ -53,6 +57,8 @@ export default function SendPage() {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
   const [info, setInfo] = useState<Info | null>(null);
+  const [chain, setChain] = useState<Chain>("arc");
+  const [baseOpen, setBaseOpen] = useState(false);
   const [token, setToken] = useState<Token>("USDC");
   const [amount, setAmount] = useState("");
   const [toAddress, setToAddress] = useState("");
@@ -70,13 +76,15 @@ export default function SendPage() {
 
   const load = useCallback(async () => {
     try {
-      setInfo(await api<Info>("/send/info"));
+      const i = await api<Info>(`/send/info?chain=${chain}`);
+      setInfo(i);
+      if (i.baseOpen !== undefined) setBaseOpen(i.baseOpen);
       const r = await api<{ sends: SendView[] }>("/sends");
       setRecent(r.sends);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load your balances.");
     }
-  }, []);
+  }, [chain]);
 
   useEffect(() => {
     if (session) void load();
@@ -105,7 +113,7 @@ export default function SendPage() {
     try {
       const r = await api<{ send: SendView }>("/send", {
         method: "POST",
-        body: JSON.stringify({ token, amount, toAddress: toAddress.trim(), confirmNetwork }),
+        body: JSON.stringify({ chain, token, amount, toAddress: toAddress.trim(), confirmNetwork }),
       });
       setPending(r.send);
       setCode("");
@@ -140,7 +148,19 @@ export default function SendPage() {
   }
 
   const limit = info?.limits[token];
-  const network = info?.network ?? "Arc";
+  const network = info?.network ?? (chain === "base" ? "Base" : "Arc");
+  const tokens: Token[] = info?.tokens ?? (chain === "base" ? ["USDC"] : TOKEN_LIST);
+
+  function pickChain(next: Chain) {
+    if (next === chain) return;
+    setChain(next);
+    setInfo(null);
+    setToken("USDC");
+    setAmount("");
+    setConfirmNetwork(false);
+    setError(null);
+    setResult(null);
+  }
 
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-10 dark:bg-zinc-950">
@@ -156,13 +176,15 @@ export default function SendPage() {
 
         <h1 className="mt-8 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Send to another wallet</h1>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-          Send USDC, EURC or cirBTC from your wallet to any wallet on {network}. No gas to pay. You confirm every send
-          with a code we email you.
+          {chain === "base"
+            ? "Send USDC from your own Base wallet to any wallet or exchange address on Base. "
+            : `Send USDC, EURC or cirBTC from your wallet to any wallet on ${network}. `}
+          No gas to pay. You confirm every send with a code we email you.
         </p>
 
         {info ? (
           <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-            You have: {TOKEN_LIST.map((t) => `${fmt(info.balances[t], t)} ${t}`).join(" · ")}
+            You have on {network}: {tokens.map((t) => `${fmt(info.balances[t], t)} ${t}`).join(", ")}
           </p>
         ) : null}
 
@@ -173,10 +195,28 @@ export default function SendPage() {
         <section className="mt-4 space-y-5 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
           {!pending ? (
             <form onSubmit={start} className="space-y-5">
+              {baseOpen ? (
+                <div>
+                  <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Network</p>
+                  <div className="mt-2 flex gap-2">
+                    <button type="button" onClick={() => pickChain("arc")} className={choiceClass(chain === "arc")}>
+                      Arc
+                    </button>
+                    <button type="button" onClick={() => pickChain("base")} className={choiceClass(chain === "base")}>
+                      Base
+                    </button>
+                  </div>
+                  {chain === "base" ? (
+                    <p className="mt-2 text-xs text-zinc-500">
+                      Sends from your Base wallet. To send from your Arc balance, first use To Base on the dashboard.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               <div>
                 <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Token</p>
                 <div className="mt-2 flex gap-2">
-                  {TOKEN_LIST.map((t) => (
+                  {tokens.map((t) => (
                     <button
                       type="button"
                       key={t}

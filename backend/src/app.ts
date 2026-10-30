@@ -47,7 +47,7 @@ app.get("/health", async (c) => {
 });
 
 // Quick check that the API (and the website's /api pass through) is up.
-app.get("/api/status", async (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridgeMonitor: true, swapCode: true, admin: true, auditFixes: true, accountTools: true, mainnetReady: true, networkFee: true, sendReady: true, mainnetAudit: true, dashboardV2: true, deposits: true, adminConfigured: Boolean(env.ADMIN_EMAIL), bridge: env.BRIDGE_ENABLED, swap: env.SWAP_ENABLED, paused: await getPauses(), notices: await pauseNotices(), network: env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") ? "testnet" : "mainnet" }));
+app.get("/api/status", async (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridgeMonitor: true, swapCode: true, admin: true, auditFixes: true, accountTools: true, mainnetReady: true, networkFee: true, sendReady: true, mainnetAudit: true, dashboardV2: true, deposits: true, baseSend: true, adminConfigured: Boolean(env.ADMIN_EMAIL), bridge: env.BRIDGE_ENABLED, swap: env.SWAP_ENABLED, paused: await getPauses(), notices: await pauseNotices(), network: env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") ? "testnet" : "mainnet" }));
 
 // Admin dashboard API (its own login; see src/admin)
 app.route("/api/admin", adminApp);
@@ -354,7 +354,11 @@ function sendErrors(err: unknown, c: Context) {
 app.get("/api/send/info", requireAuth, async (c) => {
   const { user } = c.get("auth");
   if (!user.emailVerified) return c.json({ error: "Please confirm your email first" }, 403);
-  return c.json({ ...(await sendInfo(user.id)), paused: await pausedMessage("sendPaused", user.email) });
+  try {
+    return c.json({ ...(await sendInfo(user.id, c.req.query("chain"))), paused: await pausedMessage("sendPaused", user.email) });
+  } catch (err) {
+    return sendErrors(err, c);
+  }
 });
 
 app.post("/api/send", requireAuth, async (c) => {
@@ -362,7 +366,7 @@ app.post("/api/send", requireAuth, async (c) => {
   if (!user.emailVerified) return c.json({ error: "Please confirm your email first" }, 403);
   const paused = await pausedMessage("sendPaused", user.email);
   if (paused) return c.json({ error: paused }, 503);
-  const body = (await c.req.json().catch(() => ({}))) as { token?: unknown; amount?: unknown; toAddress?: unknown; confirmNetwork?: unknown };
+  const body = (await c.req.json().catch(() => ({}))) as { token?: unknown; amount?: unknown; toAddress?: unknown; confirmNetwork?: unknown; chain?: unknown };
   try {
     return c.json({ send: await startSend({ id: user.id, email: user.email, name: user.name }, body) });
   } catch (err) {

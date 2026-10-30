@@ -1,0 +1,1 @@
+ALTER TABLE `sends` ADD `chain` text DEFAULT 'arc' NOT NULL;

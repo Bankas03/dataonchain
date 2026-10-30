@@ -602,6 +602,8 @@ export const sends = sqliteTable(
       .notNull()
       .references(() => users.id),
     walletAddress: text("wallet_address").notNull(),
+    // Which network the send is on: arc (any token), or base (USDC from their Base wallet)
+    chain: text("chain").notNull().default("arc"),
     token: text("token", { enum: SWAP_TOKENS }).notNull(),
     amount: text("amount").notNull(), // decimal string in token units
     toAddress: text("to_address").notNull(),

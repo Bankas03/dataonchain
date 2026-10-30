@@ -20,7 +20,7 @@ type Item = {
 };
 
 type SwapRow = { id: string; status: string; tokenIn: string; tokenOut: string; amountIn: string; amountOut: string | null; createdAt: string };
-type SendRow = { id: string; status: string; token: string; amount: string; toShort: string; createdAt: string };
+type SendRow = { id: string; status: string; token: string; amount: string; toShort: string; network?: string; chain?: string; createdAt: string };
 type DepositRow = { id: string; chain: string; chainLabel: string; token: string; amount: string; sourceAddress: string | null; explorerUrl: string | null; receivedAt: string };
 
 const num = (v: string, max = 6) => Number(v).toLocaleString("en-US", { maximumFractionDigits: max });
@@ -97,7 +97,7 @@ function toItems(orders: OrderView[], sends: SendRow[], swaps: SwapRow[], bridge
     items.push({
       key: `s-${s.id}`,
       kind: "send",
-      title: `Sent ${s.token}`,
+      title: s.chain === "base" ? `Sent ${s.token} on ${s.network ?? "Base"}` : `Sent ${s.token}`,
       detail: `To ${s.toShort}`,
       amount: `${num(s.amount, decimals(s.token))} ${s.token}`,
       out: true,

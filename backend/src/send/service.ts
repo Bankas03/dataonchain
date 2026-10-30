@@ -1,4 +1,6 @@
-// Sending USDC, EURC or cirBTC from a user's Arc wallet to another wallet on Arc.
+// Sending USDC, EURC or cirBTC from a user's Arc wallet to another wallet on Arc,
+// or USDC from their own Base wallet to another wallet on Base (for example an
+// exchange deposit address).
 //
 // Send: AWAITING_CODE -> SENDING -> SENT -> COMPLETE
 //         |                 |         +--> FAILED (Circle refused it: nothing left the wallet)
@@ -12,20 +14,24 @@
 //   - the Circle transfer's idempotency key comes from the send id: a retry after
 //     a crash returns the same transfer and can never send twice
 //   - limits per send, per token per 24 hours, and sends per day
-//   - only Arc addresses: never to the user's own wallet, the zero address or a
-//     token contract (a common mistake that loses the funds)
+//   - on one network at a time (Arc, or Base for USDC): never to the user's own
+//     wallets, the zero address or a token contract (a common mistake that
+//     loses the funds)
 //   - an email receipt after every completed send
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, desc, eq, gte, inArray, lt, notInArray, sql } from "drizzle-orm";
 import { circle } from "../circle/client";
 import { db } from "../db";
-import { SWAP_TOKENS, auditLogs, ledgerEntries, sends, users } from "../db/schema";
+import { SWAP_TOKENS, auditLogs, ledgerEntries, sends, users, wallets } from "../db/schema";
 import { sendEmail } from "../email";
 import { noticeEmail } from "../email/templates";
 import { env } from "../env";
 import { ensureUserWallet, uuidFrom } from "../wallets/service";
+import { chainByKey, isOpenChain } from "../bridge/chains";
+import { ensureChainWallet } from "../bridge/wallets";
 
 export type SendToken = (typeof SWAP_TOKENS)[number];
+export type SendChain = "arc" | "base";
 type Send = typeof sends.$inferSelect;
 
 export class SendError extends Error {
@@ -39,11 +45,13 @@ const MAX_CODE_ATTEMPTS = 5;
 const MAX_STARTS_PER_HOUR = 5;
 const FAILED_STATES = ["FAILED", "DENIED", "CANCELLED"];
 
-// Token contracts on Arc (testnet and mainnet use the same USDC address)
+// Token contracts (testnet and mainnet use the same USDC address on Arc)
 const TOKEN_CONTRACTS = [
-  "0x3600000000000000000000000000000000000000", // USDC
-  "0xbef5f6d51cb62b58e6a8f77868681825c6fe21c1", // EURC mainnet
-  "0x171a4217b86a807a64eb94757db6849fb4bdbaa0", // cirBTC mainnet
+  "0x3600000000000000000000000000000000000000", // USDC on Arc
+  "0xbef5f6d51cb62b58e6a8f77868681825c6fe21c1", // EURC on Arc mainnet
+  "0x171a4217b86a807a64eb94757db6849fb4bdbaa0", // cirBTC on Arc mainnet
+  "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", // USDC on Base
+  "0x036cbd53842c5426634e7929541ec2318f3dcf7e", // USDC on Base Sepolia
 ];
 
 export const SEND_TOKENS: Record<SendToken, { decimals: number; min: number; max: number; daily: number }> = {
@@ -52,7 +60,19 @@ export const SEND_TOKENS: Record<SendToken, { decimals: number; min: number; max
   cirBTC: { decimals: 8, min: 0.00001, max: env.SEND_MAX_CIRBTC, daily: env.SEND_DAILY_CIRBTC },
 };
 
-const network = () => (env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") ? "Arc Testnet" : "Arc");
+// The network's name as users know it: Arc, Arc Testnet, Base, Base Sepolia
+const network = (chain: string = "arc") => chainByKey(chain).label;
+
+// Arc always; Base only while the bridge is on and Base is open (its Gas Station policy)
+function parseChain(value: unknown): SendChain {
+  if (value === undefined || value === null || value === "" || value === "arc") return "arc";
+  if (value !== "base") throw new SendError("Choose Arc or Base.");
+  if (!env.BRIDGE_ENABLED || !isOpenChain("base")) throw new SendError("Sending on Base is not available right now.", 503);
+  return "base";
+}
+
+// The user's wallet on that network (the Base one is created the first time)
+const walletFor = (userId: string, chain: SendChain | string) => (chain === "base" ? ensureChainWallet(userId, "base") : ensureUserWallet(userId));
 const isToken = (v: unknown): v is SendToken => typeof v === "string" && (SWAP_TOKENS as readonly string[]).includes(v);
 const codeHash = (sendId: string, code: string) => createHmac("sha256", env.BETTER_AUTH_SECRET).update(`send-code:${sendId}:${code}`).digest("hex");
 const short = (a: string) => `${a.slice(0, 6)}...${a.slice(-4)}`;
@@ -90,12 +110,12 @@ function parseAmount(token: SendToken, amount: unknown): string {
   return text(token, u);
 }
 
-function parseAddress(value: unknown, own: string): string {
+function parseAddress(value: unknown, own: string[]): string {
   const a = String(value ?? "").trim();
   if (!/^0x[0-9a-fA-F]{40}$/.test(a)) throw new SendError("Enter a wallet address: 0x followed by 40 letters and numbers.");
   const lower = a.toLowerCase();
   if (/^0x0{40}$/.test(lower)) throw new SendError("That address cannot receive funds.");
-  if (lower === own.toLowerCase()) throw new SendError("That is your own dataonchain wallet. Choose another address.");
+  if (own.some((a) => a.toLowerCase() === lower)) throw new SendError("That is your own dataonchain wallet. Choose another address.");
   if (TOKEN_CONTRACTS.includes(lower)) throw new SendError("That is a token contract, not a wallet. Funds sent there are lost. Check the address.");
   return lower;
 }
@@ -138,15 +158,21 @@ async function cancelWaiting(userId: string, all: boolean) {
 // ---------------------------------------------------------------------------
 // For the Send page
 // ---------------------------------------------------------------------------
-export async function sendInfo(userId: string) {
-  const wallet = await ensureUserWallet(userId);
+export async function sendInfo(userId: string, chainInput?: unknown) {
+  const chain = parseChain(chainInput);
+  const wallet = await walletFor(userId, chain);
   const res = await circle.getWalletTokenBalance({ id: wallet.circleWalletId });
   const list = res.data?.tokenBalances ?? [];
   const find = (sym: string) => list.find((b) => (b.token?.symbol ?? "").toUpperCase().startsWith(sym.toUpperCase()))?.amount ?? "0";
   const { count, used } = await usedToday(userId);
   return {
-    network: network(),
-    balances: { USDC: find("USDC"), EURC: find("EURC"), cirBTC: find("CIRBTC") } as Record<SendToken, string>,
+    chain,
+    network: network(chain),
+    baseOpen: env.BRIDGE_ENABLED && isOpenChain("base"),
+    tokens: chain === "base" ? (["USDC"] as SendToken[]) : ([...SWAP_TOKENS] as SendToken[]),
+    balances: (chain === "base"
+      ? { USDC: find("USDC"), EURC: "0", cirBTC: "0" }
+      : { USDC: find("USDC"), EURC: find("EURC"), cirBTC: find("CIRBTC") }) as Record<SendToken, string>,
     limits: SEND_TOKENS,
     usedToday: { USDC: text("USDC", used.USDC), EURC: text("EURC", used.EURC), cirBTC: text("cirBTC", used.cirBTC) },
     sendsLeftToday: Math.max(0, env.SEND_DAILY_COUNT - count),
@@ -154,13 +180,19 @@ export async function sendInfo(userId: string) {
 }
 
 // Step 1: checks everything, saves the send and emails the code
-export async function startSend(user: { id: string; email: string; name: string }, body: { token?: unknown; amount?: unknown; toAddress?: unknown; confirmNetwork?: unknown }) {
+export async function startSend(
+  user: { id: string; email: string; name: string },
+  body: { token?: unknown; amount?: unknown; toAddress?: unknown; confirmNetwork?: unknown; chain?: unknown },
+) {
+  const chain = parseChain(body.chain);
   if (!isToken(body.token)) throw new SendError("Choose USDC, EURC or cirBTC.");
   const token = body.token;
+  if (chain === "base" && token !== "USDC") throw new SendError("Only USDC can be sent on Base.");
   const amount = parseAmount(token, body.amount);
-  const wallet = await ensureUserWallet(user.id);
-  const toAddress = parseAddress(body.toAddress, wallet.address);
-  if (body.confirmNetwork !== true) throw new SendError(`Confirm that the address is a wallet on ${network()}.`);
+  const wallet = await walletFor(user.id, chain);
+  const own = (await db.select({ address: wallets.address }).from(wallets).where(eq(wallets.userId, user.id))).map((w) => w.address);
+  const toAddress = parseAddress(body.toAddress, [wallet.address, ...own]);
+  if (body.confirmNetwork !== true) throw new SendError(`Confirm that the address is a wallet on ${network(chain)}.`);
 
   const [open] = await db.select({ id: sends.id }).from(sends).where(and(eq(sends.userId, user.id), inArray(sends.status, ["SENDING", "SENT"]))).limit(1);
   if (open) throw new SendError("You already have a send in progress. Please wait for it to finish.", 409);
@@ -187,6 +219,7 @@ export async function startSend(user: { id: string; email: string; name: string 
       id,
       userId: user.id,
       walletAddress: wallet.address.toLowerCase(),
+      chain,
       token,
       amount,
       toAddress,
@@ -205,7 +238,7 @@ export async function startSend(user: { id: string; email: string; name: string 
       subject: `Your code to send ${amount} ${token}`,
       lines: [
         `Hello ${user.name.split(" ")[0]},`,
-        `You asked to send ${amount} ${token} from your dataonchain wallet to ${toAddress} on ${network()}.`,
+        `You asked to send ${amount} ${token} from your dataonchain wallet to ${toAddress} on ${network(chain)}.`,
         "Enter this code on the Send page to confirm:",
       ],
       code,
@@ -217,7 +250,7 @@ export async function startSend(user: { id: string; email: string; name: string 
     await db.update(sends).set({ status: "CANCELLED", codeHash: null, openKey: null, error: "code email failed" }).where(eq(sends.id, id));
     throw new SendError("Could not email your code. Please try again in a moment.", 502);
   }
-  await audit("send.started", { id, userId: user.id }, { token, amount, toAddress });
+  await audit("send.started", { id, userId: user.id }, { chain, token, amount, toAddress });
   return getSendView(user.id, id);
 }
 
@@ -252,7 +285,7 @@ export async function confirmSend(userId: string, id: string, codeInput: unknown
   }
 
   // The balance may have changed since the code was sent
-  const wallet = await ensureUserWallet(userId);
+  const wallet = await walletFor(userId, s.chain);
   const have = await holding(wallet.circleWalletId, s.token);
   if (!have.tokenId || have.units < units(s.token, s.amount)) {
     await db.update(sends).set({ status: "CANCELLED", codeHash: null, openKey: null, error: "not enough balance at confirmation" }).where(eq(sends.id, s.id));
@@ -355,9 +388,9 @@ async function finished(s: Send) {
       lines: [
         `Hello ${user.name.split(" ")[0]},`,
         `${s.amount} ${s.token} left your dataonchain wallet on ${lagos(new Date())}.`,
-        `To: ${s.toAddress} (${network()})`,
+        `To: ${s.toAddress} (${network(s.chain)})`,
       ],
-      button: s.txHash ? { label: "View the transaction", url: `${env.EXPLORER_TX_URL}${s.txHash}` } : undefined,
+      button: s.txHash ? { label: "View the transaction", url: `${chainByKey(s.chain).explorerTx}${s.txHash}` } : undefined,
       footer: "If this was not you, change your password now and contact us on WhatsApp.",
     });
     await sendEmail({ to: user.email, ...message });
@@ -379,7 +412,7 @@ export async function advanceSends(): Promise<void> {
       if (s.status === "SENT") {
         await checkSent(s);
       } else if (Date.now() - s.updatedAt.getTime() > 60_000) {
-        const wallet = await ensureUserWallet(s.userId);
+        const wallet = await walletFor(s.userId, s.chain);
         const have = await holding(wallet.circleWalletId, s.token);
         if (have.tokenId) await submit(s, wallet.circleWalletId, have.tokenId);
       }
@@ -412,7 +445,8 @@ export async function getSendView(userId: string, id: string) {
     amount: s.amount,
     toAddress: s.toAddress,
     toShort: short(s.toAddress),
-    network: network(),
+    chain: s.chain,
+    network: network(s.chain),
     codeSentTo: s.status === "AWAITING_CODE" ? masked : null,
     codeExpiresAt: s.status === "AWAITING_CODE" ? (s.codeExpiresAt?.toISOString() ?? null) : null,
     // A short, safe reason for the user (the full one is kept for the admin)
@@ -423,7 +457,7 @@ export async function getSendView(userId: string, id: string) {
           : "The send did not go through. Nothing was sent. Please try again, or contact us on WhatsApp."
         : null,
     txHash: s.txHash,
-    explorerUrl: s.txHash ? `${env.EXPLORER_TX_URL}${s.txHash}` : null,
+    explorerUrl: s.txHash ? `${chainByKey(s.chain).explorerTx}${s.txHash}` : null,
     createdAt: s.createdAt.toISOString(),
   };
 }

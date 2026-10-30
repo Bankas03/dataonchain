@@ -13,7 +13,7 @@ import { circle } from "../src/circle/client";
 import { db } from "../src/db";
 import { appSettings, auditLogs, ledgerEntries, sends, users, walletSweeps, wallets } from "../src/db/schema";
 import { env } from "../src/env";
-import { SendError, advanceSends, confirmSend, getSendView, startSend } from "../src/send/service";
+import { SendError, advanceSends, confirmSend, getSendView, sendInfo, startSend } from "../src/send/service";
 import { getPauses, pausedMessage, setPause } from "../src/settings";
 import { ensureUserWallet, uuidFrom } from "../src/wallets/service";
 
@@ -134,6 +134,16 @@ async function main() {
       after = await usdcOf(wallet.circleWalletId);
     }
     check(Math.abs(before - 0.2 - after) < 0.000001, `the wallet went down by exactly 0.2 USDC (${before} -> ${after})`);
+
+    // Base: USDC only, from their own Base wallet, never to their own wallets
+    if (env.BRIDGE_ENABLED) {
+      const baseInfo = await sendInfo(userId, "base");
+      check(baseInfo.chain === "base" && baseInfo.tokens.join(",") === "USDC", "on Base only USDC can be sent", baseInfo.tokens);
+      await refused("EURC on Base is refused", () => startSend(user, { ...ok, chain: "base", token: "EURC" }));
+      await refused("their own Arc wallet is refused as a Base address", () => startSend(user, { ...ok, chain: "base", toAddress: wallet.address }));
+      await refused("more than their Base balance is refused", () => startSend(user, { ...ok, chain: "base", amount: "0.2" }));
+      await refused("an unknown network is refused", () => startSend(user, { ...ok, chain: "polygon" }));
+    }
 
     // Paused: only the admin (PAUSE_BYPASS_EMAILS) can still send
     if (env.PAUSE_BYPASS_EMAILS.includes("tester@example.com")) {

@@ -40,7 +40,7 @@ async function main() {
   const sd = await db.select().from(sends).orderBy(desc(sends.createdAt)).limit(10);
   console.log(`\nLatest sends to other wallets (${sd.length}):`);
   for (const s of sd) {
-    console.log(`  ${when(s.createdAt)}  ${s.status.padEnd(13)} ${s.amount} ${s.token} -> ${s.toAddress}${s.txHash ? `  ${chainByKey("arc").explorerTx}${s.txHash}` : ""}`);
+    console.log(`  ${when(s.createdAt)}  ${s.status.padEnd(13)} ${s.amount} ${s.token} on ${s.chain} -> ${s.toAddress}${s.txHash ? `  ${chainByKey(s.chain).explorerTx}${s.txHash}` : ""}`);
     if (s.error) console.log(`      ${s.error.slice(0, 300)}`);
   }
 }
