@@ -1,5 +1,6 @@
 "use client";
 
+import QRCode from "qrcode";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
@@ -46,6 +47,8 @@ export function WalletCard() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [qr, setQr] = useState<string | null>(null);
+  const [showQr, setShowQr] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,6 +71,12 @@ export function WalletCard() {
     await navigator.clipboard.writeText(data.wallet.address);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function toggleQr() {
+    if (!data) return;
+    if (!qr) setQr(await QRCode.toDataURL(data.wallet.address, { margin: 1, width: 240, errorCorrectionLevel: "M" }));
+    setShowQr((v) => !v);
   }
 
   const amount = split(data?.balance.usdc ?? null);
@@ -154,10 +163,17 @@ export function WalletCard() {
                 </p>
               ) : null}
 
-              <div className="mt-6 flex items-center gap-2 border-t border-white/10 pt-4">
-                <code className="min-w-0 flex-1 truncate font-mono text-sm text-white/75" title={data.wallet.address}>
+              <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
+                <code className="min-w-0 flex-1 basis-full truncate font-mono text-sm text-white/75 sm:basis-0" title={data.wallet.address}>
                   {data.wallet.address}
                 </code>
+                <button
+                  onClick={toggleQr}
+                  aria-expanded={showQr}
+                  className="shrink-0 rounded-full bg-white/10 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mint"
+                >
+                  {showQr ? "Hide QR code" : "Generate QR code"}
+                </button>
                 <button
                   onClick={copy}
                   className="shrink-0 rounded-full bg-white/10 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mint"
@@ -177,6 +193,20 @@ export function WalletCard() {
                   </svg>
                 </button>
               </div>
+
+              {showQr && qr ? (
+                <div className="mt-4 flex flex-col items-center gap-3 rounded-2xl bg-white p-5 text-center text-ink sm:flex-row sm:text-left">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={qr} alt="QR code of your wallet address" width={180} height={180} className="h-44 w-44 shrink-0" />
+                  <div className="space-y-2 text-sm">
+                    <p className="font-display text-base font-semibold">Scan to send USDC to this wallet</p>
+                    <p className="text-zinc-600">
+                      Send only USDC on the <b>{data.wallet.network}</b> network. USDC sent on any other network may be lost.
+                    </p>
+                    <p className="break-all font-mono text-xs text-zinc-500">{data.wallet.address}</p>
+                  </div>
+                </div>
+              ) : null}
             </>
           ) : null}
         </div>

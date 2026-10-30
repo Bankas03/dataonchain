@@ -41,7 +41,7 @@ type Action = { href: string; label: string; icon: ReactNode; soon?: boolean; pr
 function ActionTile({ a }: { a: Action }) {
   const circle = a.primary
     ? "bg-note text-white group-hover:bg-note-deep dark:bg-mint dark:text-note-deep dark:group-hover:bg-mint/90"
-    : "bg-white text-ink ring-1 ring-ink/10 group-hover:bg-paper dark:bg-white/[0.06] dark:text-white dark:ring-white/10 dark:group-hover:bg-white/10";
+    : "bg-white text-note shadow-sm ring-1 ring-ink/15 group-hover:bg-mint/15 dark:bg-white/[0.08] dark:text-white dark:ring-white/15 dark:group-hover:bg-white/15";
   const inner = (
     <>
       <span className={`relative flex h-14 w-14 items-center justify-center rounded-2xl transition-colors ${circle} ${a.soon ? "opacity-50" : ""}`}>

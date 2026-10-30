@@ -62,7 +62,7 @@ const ICONS: Record<Item["kind"], ReactNode> = {
   bridge: <path d="M4 12a8 8 0 0 1 16 0M12 4v16M4 12h16" />,
 };
 
-function toItems(orders: OrderView[], sends: SendRow[], swaps: SwapRow[], bridges: BridgeListItem[]): Item[] {
+function toItems(orders: OrderView[], sends: SendRow[], swaps: SwapRow[], bridges: BridgeListItem[], limit: number): Item[] {
   const items: Item[] = [];
   for (const o of orders) {
     items.push({
@@ -117,11 +117,13 @@ function toItems(orders: OrderView[], sends: SendRow[], swaps: SwapRow[], bridge
       at: new Date(b.createdAt).getTime(),
     });
   }
-  return items.sort((a, b) => b.at - a.at).slice(0, 8);
+  return items.sort((a, b) => b.at - a.at).slice(0, limit);
 }
 
-// Everything the user did, newest first: purchases, sends, swaps and transfers
-export function ActivityFeed({ bridgeOn, swapOn }: { bridgeOn: boolean; swapOn: boolean }) {
+// Everything the user did onchain, newest first: sends, swaps, transfers and
+// purchases. The dashboard shows the latest 8; the history page shows them all.
+export function ActivityFeed({ bridgeOn, swapOn, full = false }: { bridgeOn: boolean; swapOn: boolean; full?: boolean }) {
+  const limit = full ? 100 : 8;
   const [items, setItems] = useState<Item[] | null>(null);
 
   useEffect(() => {
@@ -142,7 +144,7 @@ export function ActivityFeed({ bridgeOn, swapOn }: { bridgeOn: boolean; swapOn: 
         bridgeOn ? safe(api<{ transfers: BridgeListItem[] }>("/bridge/transfers"), { transfers: [] }) : Promise.resolve({ transfers: [] as BridgeListItem[] }),
       ]);
       if (stop) return;
-      setItems(toItems(o.orders, s.sends, w.swaps.filter((x): x is SwapRow => x !== null), b.transfers));
+      setItems(toItems(o.orders, s.sends, w.swaps.filter((x): x is SwapRow => x !== null), b.transfers, limit));
       // Keep it live while anything is still moving
       const moving =
         o.orders.some((x) => ["PAYMENT_PENDING", "PAYMENT_CONFIRMED", "FULFILMENT_PENDING", "REFUND_PENDING"].includes(x.status)) ||
@@ -155,15 +157,17 @@ export function ActivityFeed({ bridgeOn, swapOn }: { bridgeOn: boolean; swapOn: 
       stop = true;
       if (timer) clearTimeout(timer);
     };
-  }, [bridgeOn, swapOn]);
+  }, [bridgeOn, swapOn, limit]);
 
   return (
     <section className="rounded-3xl bg-white p-5 ring-1 ring-ink/10 sm:p-6 dark:bg-white/[0.04] dark:ring-white/10">
       <div className="flex items-center justify-between">
-        <h2 className="font-display text-lg font-semibold text-ink dark:text-white">Recent activity</h2>
-        <Link href="/history" className="text-sm font-medium text-emerald-700 hover:underline dark:text-mint">
-          Airtime and data history
-        </Link>
+        <h2 className="font-display text-lg font-semibold text-ink dark:text-white">{full ? "All activity" : "Recent activity"}</h2>
+        {full ? null : (
+          <Link href="/activity" className="text-sm font-medium text-emerald-700 hover:underline dark:text-mint">
+            Onchain history
+          </Link>
+        )}
       </div>
 
       {items === null ? (
