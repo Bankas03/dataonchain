@@ -717,6 +717,37 @@ function sendRow(s: typeof sends.$inferSelect) {
   };
 }
 
+// Deposits: money that arrived in users' wallets from outside, newest first
+export async function listDepositsAdmin(chain: string | undefined, page: number) {
+  const where = chain === "arc" || chain === "base" ? eq(deposits.chain, chain) : undefined;
+  const [total] = await db.select({ n: count() }).from(deposits).where(where);
+  const rows = await db
+    .select({ d: deposits, email: users.email })
+    .from(deposits)
+    .innerJoin(users, eq(deposits.userId, users.id))
+    .where(where)
+    .orderBy(desc(deposits.receivedAt))
+    .limit(PAGE_SIZE)
+    .offset((page - 1) * PAGE_SIZE);
+  return {
+    total: total?.n ?? 0,
+    page,
+    pageSize: PAGE_SIZE,
+    deposits: rows.map(({ d, email }) => ({
+      id: d.id,
+      userId: d.userId,
+      email,
+      token: d.token,
+      amount: d.amount,
+      network: chainByKey(d.chain).label,
+      fromAddress: d.sourceAddress,
+      txUrl: d.txHash ? `${chainByKey(d.chain).explorerTx}${d.txHash}` : null,
+      emailed: Boolean(d.notifiedAt),
+      receivedAt: d.receivedAt.toISOString(),
+    })),
+  };
+}
+
 export async function listSendsAdmin(status: string | undefined, page: number) {
   const where =
     status && (SEND_STATUSES as readonly string[]).includes(status)

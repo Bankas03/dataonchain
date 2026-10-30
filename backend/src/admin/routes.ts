@@ -41,6 +41,7 @@ import {
   listOrders,
   listProviders,
   listRefunds,
+  listDepositsAdmin,
   listSendsAdmin,
   listSwapsAdmin,
   listUsers,
@@ -248,6 +249,8 @@ adminApp.get("/bridge/:id", requireAdmin, async (c) => {
 adminApp.get("/swaps", requireAdmin, async (c) => c.json(await listSwapsAdmin(c.req.query("status"), pageOf(c.req.query("page")))));
 
 adminApp.get("/sends", requireAdmin, async (c) => c.json(await listSendsAdmin(c.req.query("status"), pageOf(c.req.query("page")))));
+
+adminApp.get("/deposits", requireAdmin, async (c) => c.json(await listDepositsAdmin(c.req.query("network"), pageOf(c.req.query("page")))));
 
 adminApp.get("/providers", requireAdmin, async (c) => c.json({ providers: await listProviders() }));
 
