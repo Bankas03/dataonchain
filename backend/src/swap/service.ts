@@ -274,6 +274,10 @@ export async function executeSwap(userId: string, body: Params) {
 export async function getSwapView(userId: string, id: string) {
   const [s] = await db.select().from(swaps).where(and(eq(swaps.id, id), eq(swaps.userId, userId))).limit(1);
   if (!s) return null;
+  return swapView(s);
+}
+
+function swapView(s: typeof swaps.$inferSelect) {
   return {
     id: s.id,
     status: s.status,
@@ -290,9 +294,10 @@ export async function getSwapView(userId: string, id: string) {
   };
 }
 
-export async function listSwaps(userId: string) {
-  const rows = await db.select().from(swaps).where(eq(swaps.userId, userId)).orderBy(desc(swaps.createdAt)).limit(20);
-  return Promise.all(rows.map((s) => getSwapView(userId, s.id)));
+// Newest first, in one query (the history page asks for up to 100)
+export async function listSwaps(userId: string, limit = 20) {
+  const rows = await db.select().from(swaps).where(eq(swaps.userId, userId)).orderBy(desc(swaps.createdAt)).limit(limit);
+  return rows.map(swapView);
 }
 
 // A swap left PENDING (for example the server restarted mid swap) is marked

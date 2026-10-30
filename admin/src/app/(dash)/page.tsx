@@ -21,6 +21,8 @@ type Overview = {
   ordersByStatus: Record<string, number>;
   refunds: Record<string, { count: number; usdc: string }>;
   bridge: { enabled: boolean; complete: number; usdc: string; complete30: number; usdc30: string; open: number; stuck: number };
+  sends?: { complete30: number; usdc30: string };
+  deposits?: { count30: number; usdc30: string; base30: number };
   swaps: { enabled: boolean; complete: number; complete30: number; volume30: Record<string, number>; fees30: Record<string, number>; unknown: number };
   balances: { treasuryAddress: string; treasuryUrl: string; treasury: Record<string, string> | null; vtpassNgn: number | null };
   days: { day: string; orders: number; usdc: string; ngn: number; newUsers: number }[];
@@ -119,6 +121,22 @@ export default function OverviewPage() {
           }
           href="/swaps"
         />
+        {data.deposits ? (
+          <Stat
+            label="Deposits in"
+            value={count(data.deposits.count30)}
+            hint={`Last 30 days · ${usdc(data.deposits.usdc30)} USDC · ${count(data.deposits.base30)} on Base`}
+            href="/deposits"
+          />
+        ) : null}
+        {data.sends ? (
+          <Stat
+            label="Sends out"
+            value={count(data.sends.complete30)}
+            hint={`Last 30 days · ${usdc(data.sends.usdc30)} USDC`}
+            href="/sends?status=COMPLETE"
+          />
+        ) : null}
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">

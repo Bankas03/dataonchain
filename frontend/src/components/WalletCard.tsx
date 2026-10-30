@@ -92,6 +92,8 @@ export function WalletCard() {
   const totalMicro = known.reduce((sum, n) => sum + toMicro(n.usdc!), 0);
   const total = known.length ? (totalMicro / 1_000_000).toFixed(6) : null;
   const several = networks.length > 1;
+  // A network whose balance could not be read is left out of the total: say so
+  const missing = networks.filter((n) => n.usdc === null).map((n) => n.label);
   const amount = split(total);
   const naira = data?.ngnPerUsdc && total !== null ? Math.floor((totalMicro / 1_000_000) * data.ngnPerUsdc).toLocaleString("en-NG") : null;
   const extras = data?.tokens
@@ -156,6 +158,10 @@ export function WalletCard() {
                   <span className="text-3xl text-white/70">Balance unavailable</span>
                 )}
               </p>
+
+              {several && amount && missing.length ? (
+                <p className="mt-2 text-sm text-gold">Without {missing.join(" and ")}: that balance could not be read just now. Tap refresh to try again.</p>
+              ) : null}
 
               {several ? (
                 <div className="mt-4 flex flex-wrap gap-2">

@@ -236,8 +236,8 @@ async function retryEmails() {
   }
 }
 
-export async function listDeposits(userId: string) {
-  const rows = await db.select().from(deposits).where(eq(deposits.userId, userId)).orderBy(desc(deposits.receivedAt)).limit(20);
+export async function listDeposits(userId: string, limit = 20) {
+  const rows = await db.select().from(deposits).where(eq(deposits.userId, userId)).orderBy(desc(deposits.receivedAt)).limit(limit);
   return rows.map((d) => {
     let chain: BridgeChain | null = null;
     try {

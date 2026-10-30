@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 
@@ -69,6 +69,9 @@ export default function SendPage() {
   const [recent, setRecent] = useState<SendView[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The network on screen now: an answer for the other network that arrives late is ignored
+  const current = useRef<Chain>("arc");
+  current.current = chain;
 
   useEffect(() => {
     if (!isPending && !session) router.replace("/login");
@@ -77,12 +80,13 @@ export default function SendPage() {
   const load = useCallback(async () => {
     try {
       const i = await api<Info>(`/send/info?chain=${chain}`);
+      if (current.current !== chain) return;
       setInfo(i);
       if (i.baseOpen !== undefined) setBaseOpen(i.baseOpen);
       const r = await api<{ sends: SendView[] }>("/sends");
       setRecent(r.sends);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load your balances.");
+      if (current.current === chain) setError(e instanceof Error ? e.message : "Could not load your balances.");
     }
   }, [chain]);
 
@@ -386,6 +390,7 @@ export default function SendPage() {
                   <span className="min-w-0">
                     <span className="block text-zinc-900 dark:text-zinc-100">
                       {fmt(s.amount, s.token)} {s.token} to <span className="font-mono">{s.toShort}</span>
+                      {s.network ? <span className="text-zinc-500"> on {s.network}</span> : null}
                     </span>
                     <span className="block text-xs text-zinc-500">{new Date(s.createdAt).toLocaleString("en-NG")}</span>
                   </span>

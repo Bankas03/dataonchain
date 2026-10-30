@@ -64,7 +64,27 @@ const ICONS: Record<Item["kind"], ReactNode> = {
   receive: <path d="M17 7 7 17M15 17H7V9" />,
 };
 
-function toItems(orders: OrderView[], sends: SendRow[], swaps: SwapRow[], bridges: BridgeListItem[], received: DepositRow[], limit: number): Item[] {
+// Each list comes back with at most `fetched` rows. When a list is full, older
+// rows of that kind were left out, so the merged history stops at its oldest row:
+// otherwise an old swap could show while newer sends are missing.
+function cutoff(lists: { at: number[] }[], fetched: number): number {
+  let from = 0;
+  for (const l of lists) if (l.at.length >= fetched) from = Math.max(from, Math.min(...l.at));
+  return from;
+}
+
+function toItems(orders: OrderView[], sends: SendRow[], swaps: SwapRow[], bridges: BridgeListItem[], received: DepositRow[], limit: number, fetched: number): Item[] {
+  const ms = (v: string) => new Date(v).getTime();
+  const from = cutoff(
+    [
+      { at: orders.map((o) => ms(o.createdAt)) },
+      { at: sends.map((s) => ms(s.createdAt)) },
+      { at: swaps.map((s) => ms(s.createdAt)) },
+      { at: bridges.map((b) => ms(b.createdAt)) },
+      { at: received.map((d) => ms(d.receivedAt)) },
+    ],
+    fetched,
+  );
   const items: Item[] = [];
   for (const d of received) {
     const arc = d.chain === "arc";
@@ -133,13 +153,18 @@ function toItems(orders: OrderView[], sends: SendRow[], swaps: SwapRow[], bridge
       at: new Date(b.createdAt).getTime(),
     });
   }
-  return items.sort((a, b) => b.at - a.at).slice(0, limit);
+  return items
+    .filter((i) => i.at >= from)
+    .sort((a, b) => b.at - a.at)
+    .slice(0, limit);
 }
 
 // Everything the user did onchain, newest first: sends, swaps, transfers and
 // purchases. The dashboard shows the latest 8; the history page shows them all.
 export function ActivityFeed({ bridgeOn, swapOn, full = false }: { bridgeOn: boolean; swapOn: boolean; full?: boolean }) {
   const limit = full ? 100 : 8;
+  // How many of each kind to ask for: enough that the merged list has no gaps
+  const fetched = full ? 100 : 20;
   const [items, setItems] = useState<Item[] | null>(null);
 
   useEffect(() => {
@@ -154,18 +179,20 @@ export function ActivityFeed({ bridgeOn, swapOn, full = false }: { bridgeOn: boo
     };
     const load = async () => {
       const [o, s, w, b, d] = await Promise.all([
-        safe(api<{ orders: OrderView[] }>("/orders"), { orders: [] }),
-        safe(api<{ sends: SendRow[] }>("/sends"), { sends: [] }),
-        swapOn ? safe(api<{ swaps: (SwapRow | null)[] }>("/swaps"), { swaps: [] }) : Promise.resolve({ swaps: [] as (SwapRow | null)[] }),
-        bridgeOn ? safe(api<{ transfers: BridgeListItem[] }>("/bridge/transfers"), { transfers: [] }) : Promise.resolve({ transfers: [] as BridgeListItem[] }),
-        safe(api<{ deposits: DepositRow[] }>("/deposits"), { deposits: [] }),
+        safe(api<{ orders: OrderView[] }>(`/orders?limit=${fetched}`), { orders: [] }),
+        safe(api<{ sends: SendRow[] }>(`/sends?limit=${fetched}`), { sends: [] }),
+        swapOn ? safe(api<{ swaps: (SwapRow | null)[] }>(`/swaps?limit=${fetched}`), { swaps: [] }) : Promise.resolve({ swaps: [] as (SwapRow | null)[] }),
+        bridgeOn ? safe(api<{ transfers: BridgeListItem[] }>(`/bridge/transfers?limit=${fetched}`), { transfers: [] }) : Promise.resolve({ transfers: [] as BridgeListItem[] }),
+        safe(api<{ deposits: DepositRow[] }>(`/deposits?limit=${fetched}`), { deposits: [] }),
       ]);
       if (stop) return;
-      setItems(toItems(o.orders, s.sends, w.swaps.filter((x): x is SwapRow => x !== null), b.transfers, d.deposits, limit));
+      const swapList = w.swaps.filter((x): x is SwapRow => x !== null);
+      setItems(toItems(o.orders, s.sends, swapList, b.transfers, d.deposits, limit, fetched));
       // Keep it live while anything is still moving
       const moving =
         o.orders.some((x) => ["PAYMENT_PENDING", "PAYMENT_CONFIRMED", "FULFILMENT_PENDING", "REFUND_PENDING"].includes(x.status)) ||
         s.sends.some((x) => ["SENDING", "SENT"].includes(x.status)) ||
+        swapList.some((x) => x.status === "PENDING") ||
         b.transfers.some((x) => !BRIDGE_DONE.includes(x.status));
       if (moving) timer = setTimeout(load, 8000);
     };
@@ -174,7 +201,7 @@ export function ActivityFeed({ bridgeOn, swapOn, full = false }: { bridgeOn: boo
       stop = true;
       if (timer) clearTimeout(timer);
     };
-  }, [bridgeOn, swapOn, limit]);
+  }, [bridgeOn, swapOn, limit, fetched]);
 
   return (
     <section className="rounded-3xl bg-white p-5 ring-1 ring-ink/10 sm:p-6 dark:bg-white/[0.04] dark:ring-white/10">

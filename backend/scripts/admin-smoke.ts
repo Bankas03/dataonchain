@@ -137,11 +137,27 @@ async function main() {
     const me = await call("/me");
     check(me.status === 200 && me.body.email === adminEmail, "logged in as the admin email", me.body);
 
+    // Many wrong codes sent at the same moment still count: the login ends
+    {
+      const raceBefore = (await mails()).length;
+      const start = await call("/login", "POST", { email: adminEmail, password: PASSWORD });
+      check(start.status === 200, "a second login asks for a code", start.body);
+      const raceMail = await waitForMail("login code", raceBefore);
+      const raceCode = /\b(\d{6})\b/.exec(raceMail.text)?.[1];
+      const bad = raceCode === "000000" ? "111111" : "000000";
+      await Promise.all(Array.from({ length: 8 }, () => call("/login/code", "POST", { code: bad })));
+      const late = await call("/login/code", "POST", { code: raceCode });
+      check(late.status === 401, "8 wrong codes at once end the login (the limit is 5)", late.body);
+      check((await call("/me")).status === 200, "the first session is still logged in");
+    }
+
     // Every page of the dashboard answers
     const overview = await call("/overview");
     check(overview.status === 200 && typeof (overview.body.users as { total?: unknown })?.total === "number", "overview loads", overview.body);
     check(Array.isArray(overview.body.days) && (overview.body.days as unknown[]).length === 14, "overview has 14 days of volume");
-    for (const path of ["/users", "/orders", "/orders?status=open", "/refunds", "/bridge", "/swaps", "/providers", "/activity", "/settings", "/sessions"]) {
+    check(typeof (overview.body.deposits as { count30?: unknown })?.count30 === "number", "overview counts deposits", overview.body.deposits);
+    check(typeof (overview.body.sends as { complete30?: unknown })?.complete30 === "number", "overview counts sends", overview.body.sends);
+    for (const path of ["/users", "/orders", "/orders?status=open", "/refunds", "/bridge", "/swaps", "/sends", "/deposits", "/deposits?network=base", "/providers", "/activity", "/settings", "/sessions"]) {
       const r = await call(path);
       check(r.status === 200, `${path} loads`, r.body);
     }
@@ -172,10 +188,11 @@ async function main() {
     check((await call("/logout", "POST")).status === 200, "log out");
     check((await call("/me")).status === 401, "logged out for real");
 
-    // Five wrong passwords lock the login, even for the right password
-    for (let i = 0; i < 5; i++) await call("/login", "POST", { email: adminEmail, password: `wrong ${i} password` });
+    // Five wrong passwords lock the login, even for the right password, also
+    // when they are all sent at the same moment
+    await Promise.all(Array.from({ length: 6 }, (_, i) => call("/login", "POST", { email: adminEmail, password: `wrong ${i} password` })));
     const locked = await call("/login", "POST", { email: adminEmail, password: PASSWORD2 });
-    check(locked.status === 423, "five wrong passwords lock the login", locked.body);
+    check(locked.status === 423, "wrong passwords sent at once still lock the login", locked.body);
     await waitForMail("locked", 0);
     check(true, "the admin is emailed about the lock");
     await resetFlow(PASSWORD);

@@ -14,7 +14,7 @@
 //     address sets its own password with "Forgot password"
 //   - every login, lock and password change is emailed and written to the audit log
 import { createHash, createHmac, randomBytes, randomInt, scrypt, timingSafeEqual } from "node:crypto";
-import { and, eq, gte, isNull, lt, ne, or } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import { adminAccounts, adminResetTokens, adminSessions, auditLogs } from "../db/schema";
 import { sendEmail } from "../email";
@@ -159,7 +159,14 @@ export async function startLogin(emailInput: unknown, passwordInput: unknown, me
   const passwordOk = await verifyPassword(password, emailOk ? account.passwordHash : null);
   if (!emailOk || !passwordOk) {
     if (emailOk) {
-      const failed = account.failedAttempts + 1;
+      // Counted in the database itself, so many wrong passwords sent at the same
+      // moment all count
+      const [row] = await db
+        .update(adminAccounts)
+        .set({ failedAttempts: sql`${adminAccounts.failedAttempts} + 1` })
+        .where(eq(adminAccounts.id, account.id))
+        .returning({ failed: adminAccounts.failedAttempts });
+      const failed = row?.failed ?? MAX_FAILED_PASSWORDS;
       if (failed >= MAX_FAILED_PASSWORDS) {
         const until = new Date(Date.now() + LOCK_MINUTES * 60_000);
         await db.update(adminAccounts).set({ failedAttempts: 0, lockedUntil: until }).where(eq(adminAccounts.id, account.id));
@@ -169,8 +176,6 @@ export async function startLogin(emailInput: unknown, passwordInput: unknown, me
           `Last attempt from IP ${meta.ip}.`,
           'If this was not you, use "Forgot password" to set a new password. That also unlocks the login.',
         ]);
-      } else {
-        await db.update(adminAccounts).set({ failedAttempts: failed }).where(eq(adminAccounts.id, account.id));
       }
     }
     throw new AdminAuthError(
@@ -227,20 +232,32 @@ export async function finishLogin(pendingToken: string | undefined, codeInput: u
     .limit(1);
   if (!pending || pending.accountId !== account.id || pending.expiresAt.getTime() < Date.now() || !pending.codeHash) throw expired;
 
+  // Every try is counted in the database before the code is checked, so many
+  // guesses sent at the same moment cannot get past the limit
+  const [tried] = await db
+    .update(adminSessions)
+    .set({ codeAttempts: sql`${adminSessions.codeAttempts} + 1` })
+    .where(and(eq(adminSessions.id, pending.id), lt(adminSessions.codeAttempts, MAX_CODE_ATTEMPTS)))
+    .returning({ attempts: adminSessions.codeAttempts });
+  if (!tried) {
+    await db.delete(adminSessions).where(eq(adminSessions.id, pending.id));
+    throw new AdminAuthError("Too many wrong codes. Please log in again.", 401);
+  }
+
   const code = typeof codeInput === "string" ? codeInput.replace(/\s/g, "") : "";
   if (!/^\d{6}$/.test(code) || !sameHex(codeHash(pending.id, code), pending.codeHash)) {
-    const attempts = pending.codeAttempts + 1;
-    if (attempts >= MAX_CODE_ATTEMPTS) {
+    if (tried.attempts >= MAX_CODE_ATTEMPTS) {
       await db.delete(adminSessions).where(eq(adminSessions.id, pending.id));
       await adminAudit("admin.code_failed", { ip: meta.ip }, account.id);
       throw new AdminAuthError("Too many wrong codes. Please log in again.", 401);
     }
-    await db.update(adminSessions).set({ codeAttempts: attempts }).where(eq(adminSessions.id, pending.id));
-    throw new AdminAuthError(`Wrong code. ${MAX_CODE_ATTEMPTS - attempts} tries left.`, 401);
+    throw new AdminAuthError(`Wrong code. ${MAX_CODE_ATTEMPTS - tried.attempts} tries left.`, 401);
   }
 
-  // The pending login is used up; the real session gets a brand new token
-  await db.delete(adminSessions).where(eq(adminSessions.id, pending.id));
+  // The pending login is used up (only once, even if the code is sent twice);
+  // the real session gets a brand new token
+  const used = await db.delete(adminSessions).where(eq(adminSessions.id, pending.id)).returning({ id: adminSessions.id });
+  if (!used.length) throw expired;
   const token = newToken();
   const now = new Date();
   await db.insert(adminSessions).values({

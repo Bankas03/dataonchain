@@ -437,7 +437,10 @@ export async function getSendView(userId: string, id: string) {
   const [s] = await db.select().from(sends).where(and(eq(sends.id, id), eq(sends.userId, userId))).limit(1);
   if (!s) return null;
   const [user] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
-  const masked = user ? user.email.replace(/^(.{2}).*(@.*)$/, "$1***$2") : "your email";
+  return sendView(s, user ? user.email.replace(/^(.{2}).*(@.*)$/, "$1***$2") : "your email");
+}
+
+function sendView(s: typeof sends.$inferSelect, masked: string) {
   return {
     id: s.id,
     status: s.status,
@@ -462,13 +465,14 @@ export async function getSendView(userId: string, id: string) {
   };
 }
 
-export async function listSends(userId: string) {
+// Newest first, in one query (the history page asks for up to 100)
+export async function listSends(userId: string, limit = 20) {
   await cancelWaiting(userId, false);
   const rows = await db
-    .select({ id: sends.id })
+    .select()
     .from(sends)
     .where(and(eq(sends.userId, userId), notInArray(sends.status, ["AWAITING_CODE", "CANCELLED"])))
     .orderBy(desc(sends.createdAt))
-    .limit(20);
-  return (await Promise.all(rows.map((r) => getSendView(userId, r.id)))).filter(Boolean);
+    .limit(limit);
+  return rows.map((s) => sendView(s, "your email"));
 }

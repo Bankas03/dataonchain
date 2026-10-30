@@ -443,14 +443,14 @@ export async function getOrderView(userId: string, reference: string) {
   };
 }
 
-export async function listOrders(userId: string) {
+export async function listOrders(userId: string, limit = 20) {
   const rows = await db
     .select({ order: orders, planName: dataPlans.name })
     .from(orders)
     .leftJoin(dataPlans, eq(orders.planId, dataPlans.id))
     .where(and(eq(orders.userId, userId), notInArray(orders.status, ["QUOTED", "EXPIRED"])))
     .orderBy(desc(orders.createdAt))
-    .limit(20);
+    .limit(limit);
   return rows.map(({ order, planName }) => ({
     reference: order.reference,
     status: order.status,

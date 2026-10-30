@@ -29,7 +29,7 @@ export default function SendsPage() {
     <>
       <PageTitle
         title="Sends"
-        subtitle="USDC, EURC and cirBTC sent from users' Arc wallets to other wallets, each confirmed with an emailed code."
+        subtitle="USDC, EURC and cirBTC sent from users' wallets on Arc, and USDC from their Base wallets, to other wallets. Each send is confirmed with an emailed code."
       />
       <Card
         title={data ? `${count(data.total)} send(s)` : "Sends"}

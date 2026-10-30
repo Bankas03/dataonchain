@@ -309,13 +309,13 @@ export async function getBridgeView(userId: string, id: string) {
   };
 }
 
-export async function listBridges(userId: string) {
+export async function listBridges(userId: string, limit = 20) {
   const rows = await db
     .select()
     .from(bridgeTransfers)
     .where(eq(bridgeTransfers.userId, userId))
     .orderBy(desc(bridgeTransfers.createdAt))
-    .limit(20);
+    .limit(limit);
   return rows.map((t) => ({
     id: t.id,
     direction: t.direction,

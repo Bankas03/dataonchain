@@ -47,7 +47,7 @@ app.get("/health", async (c) => {
 });
 
 // Quick check that the API (and the website's /api pass through) is up.
-app.get("/api/status", async (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridgeMonitor: true, swapCode: true, admin: true, auditFixes: true, accountTools: true, mainnetReady: true, networkFee: true, sendReady: true, mainnetAudit: true, dashboardV2: true, deposits: true, baseSend: true, totalBalance: true, audit2: true, adminDeposits: true, adminConfigured: Boolean(env.ADMIN_EMAIL), bridge: env.BRIDGE_ENABLED, swap: env.SWAP_ENABLED, paused: await getPauses(), notices: await pauseNotices(), network: env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") ? "testnet" : "mainnet" }));
+app.get("/api/status", async (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridgeMonitor: true, swapCode: true, admin: true, auditFixes: true, accountTools: true, mainnetReady: true, networkFee: true, sendReady: true, mainnetAudit: true, dashboardV2: true, deposits: true, baseSend: true, totalBalance: true, audit2: true, adminDeposits: true, audit3: true, adminConfigured: Boolean(env.ADMIN_EMAIL), bridge: env.BRIDGE_ENABLED, swap: env.SWAP_ENABLED, paused: await getPauses(), notices: await pauseNotices(), network: env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") ? "testnet" : "mainnet" }));
 
 // Admin dashboard API (its own login; see src/admin)
 app.route("/api/admin", adminApp);
@@ -134,10 +134,16 @@ async function otherNetworks(userId: string): Promise<{ chain: string; label: st
   }
 }
 
+// How many rows a list returns: 20 unless asked (the history page asks for 100)
+function listLimit(raw: string | undefined): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? Math.min(n, 100) : 20;
+}
+
 // USDC that arrived from outside dataonchain, newest first
 app.get("/api/deposits", requireAuth, async (c) => {
   const { user } = c.get("auth");
-  return c.json({ deposits: await listDeposits(user.id) });
+  return c.json({ deposits: await listDeposits(user.id, listLimit(c.req.query("limit"))) });
 });
 
 // The user's own wallet on Base, to receive USDC from exchanges that do not
@@ -232,7 +238,7 @@ app.get("/api/history.csv", requireAuth, async (c) => {
 // The signed in user's recent orders
 app.get("/api/orders", requireAuth, async (c) => {
   const { user } = c.get("auth");
-  return c.json({ orders: await listOrders(user.id) });
+  return c.json({ orders: await listOrders(user.id, listLimit(c.req.query("limit"))) });
 });
 
 // ---------------------------------------------------------------------------
@@ -304,7 +310,7 @@ app.post("/api/bridge/return", requireAuth, async (c) => {
 
 app.get("/api/bridge/transfers", requireAuth, async (c) => {
   const { user } = c.get("auth");
-  return c.json({ transfers: await listBridges(user.id) });
+  return c.json({ transfers: await listBridges(user.id, listLimit(c.req.query("limit"))) });
 });
 
 app.get("/api/bridge/transfers/:id", requireAuth, async (c) => {
@@ -362,7 +368,7 @@ app.post("/api/swap", requireAuth, async (c) => {
 
 app.get("/api/swaps", requireAuth, async (c) => {
   const { user } = c.get("auth");
-  return c.json({ swaps: await listSwaps(user.id) });
+  return c.json({ swaps: await listSwaps(user.id, listLimit(c.req.query("limit"))) });
 });
 
 // ---------------------------------------------------------------------------
@@ -411,7 +417,7 @@ app.post("/api/send/:id/confirm", requireAuth, async (c) => {
 
 app.get("/api/sends", requireAuth, async (c) => {
   const { user } = c.get("auth");
-  return c.json({ sends: await listSends(user.id) });
+  return c.json({ sends: await listSends(user.id, listLimit(c.req.query("limit"))) });
 });
 
 app.get("/api/sends/:id", requireAuth, async (c) => {

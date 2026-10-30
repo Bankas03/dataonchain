@@ -65,6 +65,12 @@ function safeChain(key: string | null | undefined): BridgeChain | null {
   }
 }
 
+// A transaction link on the explorer of the network it happened on
+function txOn(chainKey: string, hash: string | null | undefined): string | null {
+  const chain = safeChain(chainKey);
+  return chain && hash ? `${chain.explorerTx}${hash}` : null;
+}
+
 function withTimeout<T>(p: Promise<T>, ms = 8_000): Promise<T> {
   return Promise.race([p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timed out")), ms))]);
 }
@@ -159,6 +165,18 @@ export async function overview() {
     swapFees[s.tokenIn] = (swapFees[s.tokenIn] ?? 0) + (amount * s.feeBps) / 10_000;
   }
   const [sAll] = await db.select({ n: count() }).from(swaps).where(eq(swaps.status, "COMPLETE"));
+
+  // Sends out and deposits in, last 30 days (USDC totals; other tokens counted only)
+  const sendRows30 = await db
+    .select({ token: sends.token, amount: sends.amount })
+    .from(sends)
+    .where(and(eq(sends.status, "COMPLETE"), gte(sends.createdAt, new Date(d30))));
+  const depositRows30 = await db
+    .select({ token: deposits.token, amount: deposits.amount, chain: deposits.chain })
+    .from(deposits)
+    .where(gte(deposits.receivedAt, new Date(d30)));
+  const usdcSum = (rows: { token: string; amount: string }[]) =>
+    rows.filter((r) => r.token === "USDC").reduce((sum, r) => sum + (Number(r.amount) || 0), 0).toFixed(2);
   const [sUnknown] = await db.select({ n: count() }).from(swaps).where(eq(swaps.status, "UNKNOWN"));
 
   // Last 14 days, by Lagos date
@@ -240,6 +258,12 @@ export async function overview() {
       usdc30: usdcText(b?.micro30 ?? 0),
       open: bOpen?.n ?? 0,
       stuck,
+    },
+    sends: { complete30: sendRows30.length, usdc30: usdcSum(sendRows30) },
+    deposits: {
+      count30: depositRows30.length,
+      usdc30: usdcSum(depositRows30),
+      base30: depositRows30.filter((r) => r.chain === "base").length,
     },
     swaps: { enabled: env.SWAP_ENABLED, complete: sAll?.n ?? 0, complete30: swapRows.length, volume30: swapVolume, fees30: swapFees, unknown: sUnknown?.n ?? 0 },
     balances: {
@@ -417,9 +441,9 @@ export async function getUser(id: string) {
       id: d.id,
       token: d.token,
       amount: d.amount,
-      network: chainByKey(d.chain).label,
+      network: safeChain(d.chain)?.label ?? d.chain,
       fromAddress: d.sourceAddress,
-      txUrl: d.txHash ? `${chainByKey(d.chain).explorerTx}${d.txHash}` : null,
+      txUrl: txOn(d.chain, d.txHash),
       emailed: Boolean(d.notifiedAt),
       receivedAt: d.receivedAt.toISOString(),
     })),
@@ -709,9 +733,9 @@ function sendRow(s: typeof sends.$inferSelect) {
     token: s.token,
     amount: s.amount,
     toAddress: s.toAddress,
-    network: chainByKey(s.chain).label,
+    network: safeChain(s.chain)?.label ?? s.chain,
     // The explorer of the network the send was on (Arc or Base)
-    txUrl: s.txHash ? `${chainByKey(s.chain).explorerTx}${s.txHash}` : null,
+    txUrl: txOn(s.chain, s.txHash),
     error: s.error,
     createdAt: s.createdAt.toISOString(),
   };
@@ -720,7 +744,7 @@ function sendRow(s: typeof sends.$inferSelect) {
 // Deposits: money that arrived in users' wallets from outside, newest first
 export async function listDepositsAdmin(chain: string | undefined, page: number) {
   const where = chain === "arc" || chain === "base" ? eq(deposits.chain, chain) : undefined;
-  const [total] = await db.select({ n: count() }).from(deposits).where(where);
+  const [total] = await db.select({ n: count() }).from(deposits).innerJoin(users, eq(deposits.userId, users.id)).where(where);
   const rows = await db
     .select({ d: deposits, email: users.email })
     .from(deposits)
@@ -739,9 +763,9 @@ export async function listDepositsAdmin(chain: string | undefined, page: number)
       email,
       token: d.token,
       amount: d.amount,
-      network: chainByKey(d.chain).label,
+      network: safeChain(d.chain)?.label ?? d.chain,
       fromAddress: d.sourceAddress,
-      txUrl: d.txHash ? `${chainByKey(d.chain).explorerTx}${d.txHash}` : null,
+      txUrl: txOn(d.chain, d.txHash),
       emailed: Boolean(d.notifiedAt),
       receivedAt: d.receivedAt.toISOString(),
     })),
@@ -753,7 +777,7 @@ export async function listSendsAdmin(status: string | undefined, page: number) {
     status && (SEND_STATUSES as readonly string[]).includes(status)
       ? eq(sends.status, status as (typeof SEND_STATUSES)[number])
       : notInArray(sends.status, ["AWAITING_CODE"]);
-  const [total] = await db.select({ n: count() }).from(sends).where(where);
+  const [total] = await db.select({ n: count() }).from(sends).innerJoin(users, eq(sends.userId, users.id)).where(where);
   const rows = await db
     .select({ s: sends, email: users.email })
     .from(sends)
