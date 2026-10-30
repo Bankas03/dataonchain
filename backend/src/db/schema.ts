@@ -620,6 +620,35 @@ export const sends = sqliteTable(
 );
 
 // ---------------------------------------------------------------------------
+// Deposits: USDC, EURC or cirBTC that arrived in a user's wallet (Arc or Base)
+// from outside dataonchain. Found by the worker on Circle; our own swaps,
+// transfers between networks and refunds are left out. One row per Circle
+// transaction, so a deposit is shown and emailed once.
+// ---------------------------------------------------------------------------
+export const deposits = sqliteTable(
+  "deposits",
+  {
+    id: id(),
+    circleTransactionId: text("circle_transaction_id").notNull().unique(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    walletId: text("wallet_id")
+      .notNull()
+      .references(() => wallets.id),
+    chain: text("chain").notNull(), // registry key: arc, base
+    token: text("token").notNull(), // USDC, EURC, cirBTC
+    amount: text("amount").notNull(),
+    sourceAddress: text("source_address"),
+    txHash: text("tx_hash"),
+    notifiedAt: integer("notified_at", { mode: "timestamp_ms" }),
+    receivedAt: integer("received_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("deposits_user_idx").on(t.userId, t.receivedAt)],
+);
+
+// ---------------------------------------------------------------------------
 // Audit log: admin and system actions
 // ---------------------------------------------------------------------------
 export const auditLogs = sqliteTable(

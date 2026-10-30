@@ -10,6 +10,9 @@ import { PaymentError, getOrderView, listOrders, orderHistory, orderHistoryCsv, 
 import { isNetwork, listDataPlans } from "./catalog/plans";
 import { QuoteError, createQuote, getQuote } from "./pricing/quote";
 import { getCurrentRate } from "./pricing/rates";
+import { listDeposits } from "./deposits/service";
+import { isOpenChain } from "./bridge/chains";
+import { ensureChainWallet } from "./bridge/wallets";
 import { NETWORK_NAMES, ensureUserWallet, previousWallet } from "./wallets/service";
 import { SwapError, TOKENS, executeSwap, listSwaps, quoteSwap, tokenBalances } from "./swap/service";
 import { SendError, confirmSend, getSendView, listSends, sendInfo, startSend } from "./send/service";
@@ -44,7 +47,7 @@ app.get("/health", async (c) => {
 });
 
 // Quick check that the API (and the website's /api pass through) is up.
-app.get("/api/status", async (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridgeMonitor: true, swapCode: true, admin: true, auditFixes: true, accountTools: true, mainnetReady: true, networkFee: true, sendReady: true, mainnetAudit: true, dashboardV2: true, adminConfigured: Boolean(env.ADMIN_EMAIL), bridge: env.BRIDGE_ENABLED, swap: env.SWAP_ENABLED, paused: await getPauses(), notices: await pauseNotices(), network: env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") ? "testnet" : "mainnet" }));
+app.get("/api/status", async (c) => c.json({ ok: true, auth: true, email: true, wallets: true, pricing: true, payments: true, delivery: true, refunds: true, sca: true, gateway: true, bridgeOut: true, bridgeOwnWallets: true, bridgeMonitor: true, swapCode: true, admin: true, auditFixes: true, accountTools: true, mainnetReady: true, networkFee: true, sendReady: true, mainnetAudit: true, dashboardV2: true, deposits: true, adminConfigured: Boolean(env.ADMIN_EMAIL), bridge: env.BRIDGE_ENABLED, swap: env.SWAP_ENABLED, paused: await getPauses(), notices: await pauseNotices(), network: env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") ? "testnet" : "mainnet" }));
 
 // Admin dashboard API (its own login; see src/admin)
 app.route("/api/admin", adminApp);
@@ -107,6 +110,22 @@ app.get("/api/wallet", requireAuth, async (c) => {
     tokens,
     ngnPerUsdc,
   });
+});
+
+// USDC that arrived from outside dataonchain, newest first
+app.get("/api/deposits", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  return c.json({ deposits: await listDeposits(user.id) });
+});
+
+// The user's own wallet on Base, to receive USDC from exchanges that do not
+// support Arc yet (then Move to Arc). Created the first time it is asked for.
+app.get("/api/wallet/base", requireAuth, async (c) => {
+  const { user } = c.get("auth");
+  if (!user.emailVerified) return c.json({ error: "Please confirm your email first" }, 403);
+  if (!env.BRIDGE_ENABLED || !isOpenChain("base")) return c.json({ error: "Receiving on Base is not available right now." }, 503);
+  const w = await ensureChainWallet(user.id, "base");
+  return c.json({ wallet: { address: w.address, network: env.CIRCLE_BLOCKCHAIN.endsWith("TESTNET") ? "Base Sepolia" : "Base" } });
 });
 
 // Data plans for one network (refreshed from VTpass every hour)

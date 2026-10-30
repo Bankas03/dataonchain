@@ -38,7 +38,7 @@ export default function ActivityPage() {
 
         <h1 className="mt-4 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl dark:text-white">Onchain history</h1>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-          Your sends, swaps and transfers on Arc and Base, newest first. Tap one to see its details and transaction.
+          What you received, sent, swapped and moved on Arc and Base, newest first. Tap one to see its details and transaction.
         </p>
 
         <div className="mt-6">

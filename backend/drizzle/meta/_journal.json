@@ -64,6 +64,13 @@
       "when": 1793219887649,
       "tag": "0008_sends",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793382362656,
+      "tag": "0009_deposits",
+      "breakpoints": true
     }
   ]
 }

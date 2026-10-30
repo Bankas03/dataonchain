@@ -19,6 +19,7 @@ import { bridgeTransfers } from "./db/schema";
 import { driveTransfer } from "./bridge/user";
 import { advanceOpenNetworkFees } from "./bridge/fees";
 import { advanceSends } from "./send/service";
+import { scanDeposits } from "./deposits/service";
 import { alertStuck, dailyReconcile } from "./bridge/monitor";
 import { releaseAbandonedSwaps } from "./swap/service";
 
@@ -26,6 +27,8 @@ const EVERY_MS = 30_000;
 // Interrupted payments are looked up on Circle every 5 minutes
 const RECOVER_EVERY_MS = 5 * 60_000;
 let lastRecovery = 0;
+const DEPOSIT_SCAN_MS = 60_000;
+let lastDepositScan = 0;
 
 export async function runWorkerOnce(): Promise<number> {
   const active = await db
@@ -87,6 +90,15 @@ export async function runWorkerOnce(): Promise<number> {
     await advanceSends();
   } catch (err) {
     console.error("[worker] sends failed:", err instanceof Error ? err.message : err);
+  }
+  // Deposits from outside dataonchain (once a minute)
+  if (Date.now() - lastDepositScan > DEPOSIT_SCAN_MS) {
+    lastDepositScan = Date.now();
+    try {
+      await scanDeposits();
+    } catch (err) {
+      console.error("[worker] deposit scan failed:", err instanceof Error ? err.message : err);
+    }
   }
   // Our transfer fee on completed transfers
   try {

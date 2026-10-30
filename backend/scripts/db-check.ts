@@ -16,6 +16,7 @@ const EXPECTED_TABLES = [
   "bridge_events",
   "bridge_transfers",
   "data_plans",
+  "deposits",
   "exchange_rates",
   "ledger_entries",
   "orders",

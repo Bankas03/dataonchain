@@ -9,7 +9,7 @@ import { STATUS_LABELS, describe, usdc, type OrderView } from "@/lib/orders";
 type Tone = "wait" | "good" | "bad";
 type Item = {
   key: string;
-  kind: "order" | "send" | "swap" | "bridge";
+  kind: "order" | "send" | "swap" | "bridge" | "receive";
   title: string;
   detail: string;
   amount: string;
@@ -21,6 +21,7 @@ type Item = {
 
 type SwapRow = { id: string; status: string; tokenIn: string; tokenOut: string; amountIn: string; amountOut: string | null; createdAt: string };
 type SendRow = { id: string; status: string; token: string; amount: string; toShort: string; createdAt: string };
+type DepositRow = { id: string; chain: string; chainLabel: string; token: string; amount: string; sourceAddress: string | null; explorerUrl: string | null; receivedAt: string };
 
 const num = (v: string, max = 6) => Number(v).toLocaleString("en-US", { maximumFractionDigits: max });
 const decimals = (token: string) => (token === "cirBTC" ? 8 : 6);
@@ -60,10 +61,25 @@ const ICONS: Record<Item["kind"], ReactNode> = {
   send: <path d="M7 17 17 7M9 7h8v8" />,
   swap: <path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7" />,
   bridge: <path d="M4 12a8 8 0 0 1 16 0M12 4v16M4 12h16" />,
+  receive: <path d="M17 7 7 17M15 17H7V9" />,
 };
 
-function toItems(orders: OrderView[], sends: SendRow[], swaps: SwapRow[], bridges: BridgeListItem[], limit: number): Item[] {
+function toItems(orders: OrderView[], sends: SendRow[], swaps: SwapRow[], bridges: BridgeListItem[], received: DepositRow[], limit: number): Item[] {
   const items: Item[] = [];
+  for (const d of received) {
+    const arc = d.chain === "arc";
+    items.push({
+      key: `d-${d.id}`,
+      kind: "receive",
+      title: arc ? `Received ${d.token}` : `Received ${d.token} on ${d.chainLabel}`,
+      detail: arc ? (d.sourceAddress ? `From ${shortAddress(d.sourceAddress)}` : "From another wallet") : "Tap Move to Arc on your dashboard",
+      amount: `${num(d.amount, decimals(d.token))} ${d.token}`,
+      out: false,
+      status: { text: "Received", tone: "good" },
+      href: d.explorerUrl ?? "/activity",
+      at: new Date(d.receivedAt).getTime(),
+    });
+  }
   for (const o of orders) {
     items.push({
       key: `o-${o.reference}`,
@@ -137,14 +153,15 @@ export function ActivityFeed({ bridgeOn, swapOn, full = false }: { bridgeOn: boo
       }
     };
     const load = async () => {
-      const [o, s, w, b] = await Promise.all([
+      const [o, s, w, b, d] = await Promise.all([
         safe(api<{ orders: OrderView[] }>("/orders"), { orders: [] }),
         safe(api<{ sends: SendRow[] }>("/sends"), { sends: [] }),
         swapOn ? safe(api<{ swaps: (SwapRow | null)[] }>("/swaps"), { swaps: [] }) : Promise.resolve({ swaps: [] as (SwapRow | null)[] }),
         bridgeOn ? safe(api<{ transfers: BridgeListItem[] }>("/bridge/transfers"), { transfers: [] }) : Promise.resolve({ transfers: [] as BridgeListItem[] }),
+        safe(api<{ deposits: DepositRow[] }>("/deposits"), { deposits: [] }),
       ]);
       if (stop) return;
-      setItems(toItems(o.orders, s.sends, w.swaps.filter((x): x is SwapRow => x !== null), b.transfers, limit));
+      setItems(toItems(o.orders, s.sends, w.swaps.filter((x): x is SwapRow => x !== null), b.transfers, d.deposits, limit));
       // Keep it live while anything is still moving
       const moving =
         o.orders.some((x) => ["PAYMENT_PENDING", "PAYMENT_CONFIRMED", "FULFILMENT_PENDING", "REFUND_PENDING"].includes(x.status)) ||
@@ -181,7 +198,7 @@ export function ActivityFeed({ bridgeOn, swapOn, full = false }: { bridgeOn: boo
       {items && items.length === 0 ? (
         <div className="mt-4 rounded-2xl bg-paper px-4 py-6 text-center dark:bg-white/5">
           <p className="font-medium text-ink dark:text-white">Nothing here yet</p>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Add USDC to your wallet to get started. Your sends, swaps and transfers will show here.</p>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Add USDC to your wallet to get started. What you receive, send, swap and move will show here.</p>
           <Link href="/add-usdc" className="mt-4 inline-block rounded-full bg-note px-5 py-2.5 text-sm font-semibold text-white hover:bg-note-deep">
             Add USDC
           </Link>
@@ -192,7 +209,11 @@ export function ActivityFeed({ bridgeOn, swapOn, full = false }: { bridgeOn: boo
         <ul className="mt-2 divide-y divide-ink/5 dark:divide-white/5">
           {items.map((it) => (
             <li key={it.key}>
-              <Link href={it.href} className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-3 hover:bg-paper focus-visible:outline-2 focus-visible:outline-emerald-600 dark:hover:bg-white/5">
+              <Link
+                href={it.href}
+                {...(it.href.startsWith("http") ? { target: "_blank", rel: "noreferrer" } : {})}
+                className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-3 hover:bg-paper focus-visible:outline-2 focus-visible:outline-emerald-600 dark:hover:bg-white/5"
+              >
                 <span
                   className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
                     it.out ? "bg-paper text-ink dark:bg-white/10 dark:text-white" : "bg-mint/20 text-emerald-800 dark:text-mint"

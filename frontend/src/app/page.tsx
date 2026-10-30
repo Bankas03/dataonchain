@@ -85,7 +85,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "How do I add USDC?",
-    a: "Open Add USDC from your dashboard and copy your address, or scan the QR code. From an exchange or another wallet, send USDC and choose Arc as the network. USDC sent on any other network, or any other token, may be lost.",
+    a: "Open Add USDC from your dashboard and copy your address, or scan the QR code. From an exchange or another wallet, send USDC and choose Arc as the network. If your exchange does not list Arc yet, choose the Base tab, send USDC on Base to the address shown, then tap Move to Arc on your dashboard. Always match the network on both sides: USDC sent on any other network, or any other token, may be lost. We email you when it arrives.",
   },
   {
     q: "Do I need a crypto wallet, a seed phrase or any crypto knowledge?",
