@@ -9,7 +9,7 @@
 //
 // Safety: only real USDC, EURC and cirBTC count (checked by contract address on
 // mainnet), so a fake token named "USDC" sent to a wallet never shows as money.
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull } from "drizzle-orm";
 import { circle } from "../circle/client";
 import { db } from "../db";
 import { bridgeTransfers, deposits, refunds, swaps, users, walletSweeps, wallets } from "../db/schema";
@@ -69,7 +69,8 @@ async function tokenInfo(tokenId: string, circleWalletId: string): Promise<Token
     const t = b?.token as unknown as { symbol?: string; tokenAddress?: string; isNative?: boolean } | undefined;
     if (t?.symbol) info = { symbol: t.symbol, address: t.tokenAddress?.toLowerCase() ?? null, native: Boolean(t.isNative) };
   }
-  tokenCache.set(tokenId, info);
+  // Only a known answer is kept: a lookup that failed (network) is tried again next scan
+  if (info) tokenCache.set(tokenId, info);
   return info;
 }
 
@@ -119,6 +120,13 @@ async function notify(d: typeof deposits.$inferSelect, chain: BridgeChain) {
     footer: "Did not expect this? You do not need to do anything. Never send funds back to someone who asks you to after an unexpected deposit.",
   });
   await sendEmail({ to: user.email, ...message });
+}
+
+// Deposits in a period, for the daily report
+export async function depositSummary(since: Date) {
+  const rows = await db.select({ token: deposits.token, amount: deposits.amount }).from(deposits).where(gte(deposits.receivedAt, since));
+  const usdc = rows.filter((r) => r.token === "USDC").reduce((s, r) => s + Number(r.amount), 0);
+  return { count: rows.length, usdc: usdc.toFixed(2) };
 }
 
 // One pass for the worker. Safe to run as often as you like.
@@ -200,7 +208,32 @@ export async function scanDeposits(): Promise<number> {
     }
   }
   if (added) console.log(`[deposits] ${added} new deposit(s)`);
+  await retryEmails();
   return added;
+}
+
+// A deposit whose email failed (Resend down, network) is emailed on a later scan,
+// for up to a day
+async function retryEmails() {
+  const due = await db
+    .select()
+    .from(deposits)
+    .where(and(isNull(deposits.notifiedAt), gte(deposits.receivedAt, new Date(Date.now() - 24 * 60 * 60_000))))
+    .limit(10);
+  for (const d of due) {
+    let chain: BridgeChain;
+    try {
+      chain = chainByKey(d.chain);
+    } catch {
+      continue;
+    }
+    try {
+      await notify(d, chain);
+      await db.update(deposits).set({ notifiedAt: new Date() }).where(eq(deposits.id, d.id));
+    } catch (err) {
+      console.error(`[deposits] ${d.id} email failed again:`, err instanceof Error ? err.message : err);
+    }
+  }
 }
 
 export async function listDeposits(userId: string) {

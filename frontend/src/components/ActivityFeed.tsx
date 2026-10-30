@@ -72,7 +72,7 @@ function toItems(orders: OrderView[], sends: SendRow[], swaps: SwapRow[], bridge
       key: `d-${d.id}`,
       kind: "receive",
       title: arc ? `Received ${d.token}` : `Received ${d.token} on ${d.chainLabel}`,
-      detail: arc ? (d.sourceAddress ? `From ${shortAddress(d.sourceAddress)}` : "From another wallet") : "Tap Move to Arc on your dashboard",
+      detail: d.sourceAddress ? `From ${shortAddress(d.sourceAddress)}` : `In your ${d.chainLabel} wallet`,
       amount: `${num(d.amount, decimals(d.token))} ${d.token}`,
       out: false,
       status: { text: "Received", tone: "good" },

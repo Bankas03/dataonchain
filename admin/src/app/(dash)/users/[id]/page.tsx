@@ -16,7 +16,8 @@ type Detail = {
   orders: { id: string; reference: string; status: string; serviceType: string; network: string; planName: string | null; phone: string; ngnAmount: number; usdcAmount: string; createdAt: string }[];
   bridges: { id: string; status: string; from: string; to: string; amount: string; recipientAddress: string; createdAt: string }[];
   swaps: { id: string; status: string; tokenIn: string; tokenOut: string; amountIn: string; amountOut: string | null; txUrl: string | null; createdAt: string }[];
-  sends?: { id: string; status: string; token: string; amount: string; toAddress: string; txUrl: string | null; error: string | null; createdAt: string }[];
+  sends?: { id: string; status: string; token: string; amount: string; toAddress: string; network?: string; txUrl: string | null; error: string | null; createdAt: string }[];
+  deposits?: { id: string; token: string; amount: string; network: string; fromAddress: string | null; txUrl: string | null; emailed: boolean; receivedAt: string }[];
   sweeps: { id: string; status: string; amount: string; toAddress: string; txUrl: string | null; createdAt: string }[];
   activity: { id: string; actorType: string; action: string; details: unknown; at: string }[];
 };
@@ -159,13 +160,32 @@ export default function UserPage() {
           <Table head={["Amount", "To", "Status", "Date"]}>
             {data.sends.map((s) => (
               <tr key={s.id}>
-                <Td><ExtLink href={s.txUrl}>{token(s.amount)} {s.token}</ExtLink></Td>
+                <Td>
+                  <ExtLink href={s.txUrl}>{token(s.amount)} {s.token}</ExtLink>
+                  {s.network ? <span className="block text-xs text-zinc-500">on {s.network}</span> : null}
+                </Td>
                 <Td className="font-mono text-xs">{short(s.toAddress)}</Td>
                 <Td>
                   <Badge status={s.status} />
                   {s.error ? <span className="mt-1 block max-w-xs text-xs text-zinc-500">{s.error}</span> : null}
                 </Td>
                 <Td className="whitespace-nowrap text-zinc-500">{when(s.createdAt)}</Td>
+              </tr>
+            ))}
+          </Table>
+        </Card>
+      ) : null}
+
+      {data.deposits && data.deposits.length ? (
+        <Card title="Deposits received" className="mt-6">
+          <Table head={["Amount", "Network", "From", "Email", "Date"]}>
+            {data.deposits.map((d) => (
+              <tr key={d.id}>
+                <Td><ExtLink href={d.txUrl}>{token(d.amount)} {d.token}</ExtLink></Td>
+                <Td>{d.network}</Td>
+                <Td className="font-mono text-xs">{short(d.fromAddress)}</Td>
+                <Td>{d.emailed ? "Sent" : "Not yet"}</Td>
+                <Td className="whitespace-nowrap text-zinc-500">{when(d.receivedAt)}</Td>
               </tr>
             ))}
           </Table>

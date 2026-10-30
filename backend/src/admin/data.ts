@@ -14,6 +14,7 @@ import {
   payments,
   refunds,
   sends,
+  deposits,
   swaps,
   users,
   vtuTransactions,
@@ -368,6 +369,7 @@ export async function getUser(id: string) {
     .where(and(eq(sends.userId, id), notInArray(sends.status, ["AWAITING_CODE"])))
     .orderBy(desc(sends.createdAt))
     .limit(20);
+  const depositRows = await db.select().from(deposits).where(eq(deposits.userId, id)).orderBy(desc(deposits.receivedAt)).limit(20);
   const sweepRows = await db.select().from(walletSweeps).where(eq(walletSweeps.userId, id)).orderBy(desc(walletSweeps.createdAt)).limit(10);
   const activity = await db
     .select()
@@ -411,6 +413,16 @@ export async function getUser(id: string) {
     bridges: bridgeRows.map(bridgeRow),
     swaps: swapRows.map(swapRow),
     sends: sendRows.map(sendRow),
+    deposits: depositRows.map((d) => ({
+      id: d.id,
+      token: d.token,
+      amount: d.amount,
+      network: chainByKey(d.chain).label,
+      fromAddress: d.sourceAddress,
+      txUrl: d.txHash ? `${chainByKey(d.chain).explorerTx}${d.txHash}` : null,
+      emailed: Boolean(d.notifiedAt),
+      receivedAt: d.receivedAt.toISOString(),
+    })),
     sweeps: sweepRows.map((s) => ({
       id: s.id,
       status: s.status,
@@ -697,7 +709,9 @@ function sendRow(s: typeof sends.$inferSelect) {
     token: s.token,
     amount: s.amount,
     toAddress: s.toAddress,
-    txUrl: arcTx(s.txHash),
+    network: chainByKey(s.chain).label,
+    // The explorer of the network the send was on (Arc or Base)
+    txUrl: s.txHash ? `${chainByKey(s.chain).explorerTx}${s.txHash}` : null,
     error: s.error,
     createdAt: s.createdAt.toISOString(),
   };

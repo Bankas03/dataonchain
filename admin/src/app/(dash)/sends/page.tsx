@@ -11,6 +11,7 @@ type Row = {
   token: string;
   amount: string;
   toAddress: string;
+  network?: string;
   txUrl: string | null;
   error: string | null;
   userId: string;
@@ -64,6 +65,7 @@ export default function SendsPage() {
                     <ExtLink href={s.txUrl}>
                       {token(s.amount)} {s.token}
                     </ExtLink>
+                    {s.network ? <span className="block text-xs text-zinc-500">on {s.network}</span> : null}
                   </Td>
                   <Td className="font-mono text-xs">{short(s.toAddress)}</Td>
                   <Td>
