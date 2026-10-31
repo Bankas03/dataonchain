@@ -10,6 +10,15 @@ function required(name: string): string {
   return value;
 }
 
+// Like optionalNumber, but 0 is allowed (for example a reserve of nothing)
+function optionalAmount(name: string): number | undefined {
+  const raw = process.env[name]?.trim();
+  if (!raw) return undefined;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be 0 or more`);
+  return value;
+}
+
 function optionalNumber(name: string): number | undefined {
   const raw = process.env[name];
   if (!raw) return undefined;
@@ -70,7 +79,7 @@ export const env = {
   // address (on Arc), set on Render, never typed in the dashboard. Unset = off.
   TREASURY_PAYOUT_ADDRESS: process.env.TREASURY_PAYOUT_ADDRESS?.trim().toLowerCase() || undefined,
   // USDC that always stays in the treasury for refunds, on top of open orders
-  TREASURY_RESERVE_USDC: optionalNumber("TREASURY_RESERVE_USDC") ?? 10,
+  TREASURY_RESERVE_USDC: optionalAmount("TREASURY_RESERVE_USDC") ?? 10,
   EXPLORER_TX_URL: process.env.EXPLORER_TX_URL ?? "https://explorer.testnet.arc.io/tx/",
   // Bridge (Circle Gateway). Off until the user facing bridge ships.
   BRIDGE_ENABLED: (process.env.BRIDGE_ENABLED ?? "false") === "true",

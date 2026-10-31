@@ -139,7 +139,8 @@ export default function TreasuryPage() {
           )}
           <p className="mt-3 text-xs text-zinc-500">
             Set on Render as TREASURY_PAYOUT_ADDRESS. It cannot be changed here, so nobody who gets into this dashboard can send the treasury anywhere else.
-            It must be a wallet that works on Arc (your own dataonchain wallet works: then use To Base to reach an exchange).
+            It must be a wallet that works on Arc. Your own dataonchain wallet works: to cash out, use To Base on its dashboard (to your own Base
+            wallet), then Send on Base to your exchange&apos;s USDC deposit address on Base.
           </p>
         </Card>
       </div>

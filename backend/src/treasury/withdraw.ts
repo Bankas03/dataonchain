@@ -87,13 +87,28 @@ async function holdings(): Promise<Record<Token, { tokenId: string | null; units
   return { USDC: pick("USDC"), EURC: pick("EURC"), cirBTC: pick("cirBTC") };
 }
 
-// USDC that must stay: the reserve plus open orders that may need a refund
+// USDC that must stay: the reserve plus open orders that may need a refund,
+// including failed orders that were paid and whose refund has not gone out yet
 async function heldBackMicro(): Promise<{ reserve: bigint; owed: bigint }> {
-  const [row] = await db
+  const [open] = await db
     .select({ micro: sql<number>`coalesce(sum(${orders.usdcAmountMicro}), 0)`.mapWith(Number) })
     .from(orders)
     .where(inArray(orders.status, [...OWED_STATUSES]));
-  return { reserve: units("USDC", env.TREASURY_RESERVE_USDC.toFixed(6)), owed: BigInt(row?.micro ?? 0) };
+  const [failed] = await db
+    .select({ micro: sql<number>`coalesce(sum(${orders.usdcAmountMicro}), 0)`.mapWith(Number) })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.status, "FAILED"),
+        // Written out in full so each column clearly belongs to its own table
+        sql`exists (select 1 from "payments" "p" where "p"."order_id" = "orders"."id" and "p"."status" = 'CONFIRMED')`,
+        sql`not exists (select 1 from "refunds" "r" where "r"."order_id" = "orders"."id" and "r"."status" = 'CONFIRMED')`,
+      ),
+    );
+  return {
+    reserve: units("USDC", env.TREASURY_RESERVE_USDC.toFixed(6)),
+    owed: BigInt(open?.micro ?? 0) + BigInt(failed?.micro ?? 0),
+  };
 }
 
 async function available() {

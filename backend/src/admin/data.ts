@@ -16,6 +16,7 @@ import {
   sends,
   deposits,
   swaps,
+  treasuryWithdrawals,
   users,
   vtuTransactions,
   walletSweeps,
@@ -228,9 +229,14 @@ export async function overview() {
     .where(and(inArray(sends.status, ["SENDING", "SENT"]), sql`${sends.updatedAt} < ${Date.now() - 30 * 60_000}`));
   if (sendStuck?.n) issues.push({ text: `${sendStuck.n} send(s) waiting for Circle over 30 minutes`, href: "/sends?status=SENT" });
   if (treasuryBalances && Number(treasuryBalances.USDC) < LOW_TREASURY_USDC) {
-    issues.push({ text: `Treasury is low: ${treasuryBalances.USDC} USDC (refunds need USDC)`, href: "/settings" });
+    issues.push({ text: `Treasury is low: ${treasuryBalances.USDC} USDC (refunds need USDC)`, href: "/treasury" });
   }
-  if (treasury.status === "rejected") issues.push({ text: "Could not read the treasury balance from Circle", href: "/settings" });
+  if (treasury.status === "rejected") issues.push({ text: "Could not read the treasury balance from Circle", href: "/treasury" });
+  const [withdrawStuck] = await db
+    .select({ n: count() })
+    .from(treasuryWithdrawals)
+    .where(and(inArray(treasuryWithdrawals.status, ["SENDING", "SENT"]), sql`${treasuryWithdrawals.updatedAt} < ${Date.now() - 30 * 60_000}`));
+  if (withdrawStuck?.n) issues.push({ text: `${withdrawStuck.n} treasury withdrawal(s) waiting for Circle over 30 minutes`, href: "/treasury" });
   if (vtpassBalance !== null && vtpassBalance < LOW_VTPASS_NGN) {
     issues.push({ text: `VTpass wallet is low: ₦${vtpassBalance.toLocaleString("en-NG")}`, href: "/settings" });
   }

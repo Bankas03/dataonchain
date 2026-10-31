@@ -157,7 +157,7 @@ async function main() {
     check(Array.isArray(overview.body.days) && (overview.body.days as unknown[]).length === 14, "overview has 14 days of volume");
     check(typeof (overview.body.deposits as { count30?: unknown })?.count30 === "number", "overview counts deposits", overview.body.deposits);
     check(typeof (overview.body.sends as { complete30?: unknown })?.complete30 === "number", "overview counts sends", overview.body.sends);
-    for (const path of ["/users", "/orders", "/orders?status=open", "/refunds", "/bridge", "/swaps", "/sends", "/deposits", "/deposits?network=base", "/providers", "/activity", "/settings", "/sessions"]) {
+    for (const path of ["/users", "/orders", "/orders?status=open", "/refunds", "/bridge", "/swaps", "/sends", "/deposits", "/deposits?network=base", "/treasury", "/providers", "/activity", "/settings", "/sessions"]) {
       const r = await call(path);
       check(r.status === 200, `${path} loads`, r.body);
     }
