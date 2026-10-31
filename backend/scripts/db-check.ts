@@ -26,6 +26,7 @@ const EXPECTED_TABLES = [
   "sessions",
   "swaps",
   "treasury_movements",
+  "treasury_withdrawals",
   "users",
   "verifications",
   "vtu_transactions",

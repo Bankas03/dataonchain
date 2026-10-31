@@ -66,6 +66,11 @@ export const env = {
   TREASURY_WALLET_ID: required("TREASURY_WALLET_ID"),
   TREASURY_ADDRESS: required("TREASURY_ADDRESS"),
   PAYMENT_FEE_BUFFER_USDC: optionalNumber("PAYMENT_FEE_BUFFER_USDC") ?? 0.02,
+  // Treasury withdrawals from the admin dashboard: they only ever go to this
+  // address (on Arc), set on Render, never typed in the dashboard. Unset = off.
+  TREASURY_PAYOUT_ADDRESS: process.env.TREASURY_PAYOUT_ADDRESS?.trim().toLowerCase() || undefined,
+  // USDC that always stays in the treasury for refunds, on top of open orders
+  TREASURY_RESERVE_USDC: optionalNumber("TREASURY_RESERVE_USDC") ?? 10,
   EXPLORER_TX_URL: process.env.EXPLORER_TX_URL ?? "https://explorer.testnet.arc.io/tx/",
   // Bridge (Circle Gateway). Off until the user facing bridge ships.
   BRIDGE_ENABLED: (process.env.BRIDGE_ENABLED ?? "false") === "true",

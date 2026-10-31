@@ -622,6 +622,33 @@ export const sends = sqliteTable(
 );
 
 // ---------------------------------------------------------------------------
+// Treasury withdrawals: the admin taking fees out of the treasury, always to
+// TREASURY_PAYOUT_ADDRESS on Arc, confirmed with a code emailed to the admin.
+// Same statuses as sends. One open at a time (openKey).
+// ---------------------------------------------------------------------------
+export const treasuryWithdrawals = sqliteTable(
+  "treasury_withdrawals",
+  {
+    id: id(),
+    adminId: text("admin_id"),
+    token: text("token", { enum: SWAP_TOKENS }).notNull(),
+    amount: text("amount").notNull(), // decimal string in token units
+    toAddress: text("to_address").notNull(),
+    status: text("status", { enum: SEND_STATUSES }).notNull().default("AWAITING_CODE"),
+    codeHash: text("code_hash"),
+    codeExpiresAt: integer("code_expires_at", { mode: "timestamp_ms" }),
+    codeAttempts: integer("code_attempts").notNull().default(0),
+    circleTransactionId: text("circle_transaction_id").unique(),
+    txHash: text("tx_hash"),
+    error: text("error"),
+    openKey: text("open_key").unique(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("treasury_withdrawals_status_idx").on(t.status)],
+);
+
+// ---------------------------------------------------------------------------
 // Deposits: USDC, EURC or cirBTC that arrived in a user's wallet (Arc or Base)
 // from outside dataonchain. Found by the worker on Circle; our own swaps,
 // transfers between networks and refunds are left out. One row per Circle

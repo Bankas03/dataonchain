@@ -19,6 +19,7 @@ import { bridgeTransfers } from "./db/schema";
 import { driveTransfer } from "./bridge/user";
 import { advanceOpenNetworkFees } from "./bridge/fees";
 import { advanceSends } from "./send/service";
+import { advanceWithdrawals } from "./treasury/withdraw";
 import { scanDeposits } from "./deposits/service";
 import { alertStuck, dailyReconcile } from "./bridge/monitor";
 import { releaseAbandonedSwaps } from "./swap/service";
@@ -90,6 +91,12 @@ export async function runWorkerOnce(): Promise<number> {
     await advanceSends();
   } catch (err) {
     console.error("[worker] sends failed:", err instanceof Error ? err.message : err);
+  }
+  // Treasury withdrawals by the admin: expired codes, results from Circle, retries
+  try {
+    await advanceWithdrawals();
+  } catch (err) {
+    console.error("[worker] treasury withdrawals failed:", err instanceof Error ? err.message : err);
   }
   // Deposits from outside dataonchain (once a minute)
   if (Date.now() - lastDepositScan > DEPOSIT_SCAN_MS) {

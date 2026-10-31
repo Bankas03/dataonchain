@@ -16,6 +16,7 @@ const NAV = [
   { href: "/swaps", label: "Swaps" },
   { href: "/sends", label: "Sends" },
   { href: "/deposits", label: "Deposits" },
+  { href: "/treasury", label: "Treasury" },
   { href: "/providers", label: "Providers" },
   { href: "/activity", label: "Activity" },
   { href: "/settings", label: "Settings" },

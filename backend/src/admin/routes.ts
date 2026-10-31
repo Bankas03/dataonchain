@@ -12,6 +12,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 import { env } from "../env";
 import { isPauseKey } from "../settings";
+import { WithdrawError, confirmWithdraw, startWithdraw, treasuryView } from "../treasury/withdraw";
 import { AdminActionError, failAndRefund, recheckOrder, retryRefund, setPauseSwitch, setProviderActive, setUserStatus } from "./actions";
 import {
   AdminAuthError,
@@ -88,7 +89,7 @@ function tooMany(c: Context, bucket: string, limit: number, windowMinutes: numbe
 }
 
 function fail(c: Context, err: unknown) {
-  if (err instanceof AdminAuthError || err instanceof AdminActionError) return c.json({ error: err.message }, err.status);
+  if (err instanceof AdminAuthError || err instanceof AdminActionError || err instanceof WithdrawError) return c.json({ error: err.message }, err.status);
   throw err;
 }
 
@@ -309,6 +310,28 @@ adminApp.post("/settings/pause", requireAdmin, async (c) => {
   if (!isPauseKey(b.key)) return c.json({ error: "Unknown switch" }, 400);
   try {
     return c.json(await setPauseSwitch(c.get("admin").account.id, b.key, b.paused));
+  } catch (err) {
+    return fail(c, err);
+  }
+});
+
+// Treasury: balances, what can be withdrawn, and withdrawals to the payout address
+adminApp.get("/treasury", requireAdmin, async (c) => c.json(await treasuryView()));
+
+adminApp.post("/treasury/withdraw", requireAdmin, async (c) => {
+  if (tooMany(c, "withdraw", 10, 60)) return c.json({ error: "Too many requests. Please wait an hour." }, 429);
+  const b = await body(c);
+  try {
+    return c.json({ withdrawal: await startWithdraw(c.get("admin").account.id, { token: b.token, amount: b.amount }) });
+  } catch (err) {
+    return fail(c, err);
+  }
+});
+
+adminApp.post("/treasury/withdraw/:id/confirm", requireAdmin, async (c) => {
+  const b = await body(c);
+  try {
+    return c.json({ withdrawal: await confirmWithdraw(c.req.param("id"), b.code) });
   } catch (err) {
     return fail(c, err);
   }

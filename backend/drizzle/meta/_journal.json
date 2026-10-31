@@ -78,6 +78,13 @@
       "when": 1793383096628,
       "tag": "0010_send_chain",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1793471271796,
+      "tag": "0011_treasury_withdrawals",
+      "breakpoints": true
     }
   ]
 }
